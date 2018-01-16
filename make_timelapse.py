@@ -14,9 +14,15 @@ import imutils
 import numpy as np
 import cv2
 import datetime
-
+import timeit
 
 def load_reference_image(name):
+    """
+    Load reference image containing all figures from 0 to 9
+    Detect how figures look like
+    return dict containing shapes
+    """
+    print("Loading reference image")
     # First, load reference image: this image contains the figures 0123456789
     reference = cv2.imread(name)
     reference = cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY)
@@ -34,6 +40,7 @@ def load_reference_image(name):
     # Put each digit in a dict
     digits={}
     for (i, c) in enumerate(reference_contours):
+        print("Looking for number {}".format(i))
         (x, y, w, h) = cv2.boundingRect(c)
         roi = reference[y:y+h, x:x+w]
         digits[i]=roi
@@ -42,33 +49,29 @@ def load_reference_image(name):
     return digits
 
 
-def find_timestamp(digits):
-    # open video file
-    cap = cv2.VideoCapture('TLC00032.AVI')
+def find_timestamp(frame, digits):
+    """
+    Detect digits in the frame by applying matchTemplate
+    Return the found date/time
+    """
+    # Convert frame to greyscale
+    grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    # if video file opened, grab a frame
-    if cap.isOpened():
-        ret, frame = cap.read()
-        # Convert to greyscale
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    # Find digits in the image by matchTemplate each digit
+    found_numbers = []
+    for number, digit in digits.items():
+        match_result = cv2.matchTemplate(grey, digit, cv2.TM_CCOEFF_NORMED)
+        threshold = 0.9
+        locations = np.where(match_result >= threshold)
 
-        # Find digits in the image by matchTemplate each digit
-        output=[]
-        for number, digit in digits.items():
-            result = cv2.matchTemplate(gray, digit, cv2.TM_CCOEFF_NORMED)
-            threshold = 0.9
-            locations = np.where(result >= threshold)
+        for position in np.transpose(locations):
+            # In the timelapse videos the timestamp occurs at line 704
+            if position[0] == 704:
+                found_numbers.append([position[1], number])
 
-            for position in np.transpose(locations):
-                if position[0] == 704:
-                    output.append([number, position[1]])    
-                      
-    # close video file
-    cap.release()
-
-    # Sort output from left to right, return only digits, not position
-    output.sort(key=lambda x: x[1])
-    output=[ digit[0] for digit in output[3::] ]
+    # Sort output from left to right, return only digits, not position, skip (TLC PRO)200
+    found_numbers.sort()
+    output = [ digit[1] for digit in found_numbers[3::] ]
 
     # Calculate year, month... into a date
     year = 1000*output[0] + 100*output[1] + 10*output[2] + output[3]
@@ -76,16 +79,44 @@ def find_timestamp(digits):
     day = 10*output[6] + output[7]
     hour = 10*output[8] + output[9]
     minute = 10*output[10] + output[11]
-    datum = datetime.datetime(year, month, day, hour, minute)
+    second = 10*output[12] + output[13]
+    datum = datetime.datetime(year, month, day, hour, minute, second)
+
+    return datum
+
+
+def load_video(filename, reference_numbers):
+    """
+    Load specified video, print time
+    """
+    print("Loading video {}".format(filename))
     
-    print(output)
-    print(datum)
+    # open video file
+    cap = cv2.VideoCapture(filename)
+
+    # if video file opened, grab a frame
+    output = []
+    # needs to be optimized: how to access frames from cap.read(). (need to RTFM)
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if ret:
+            tijd = find_timestamp(frame, reference_numbers)
+            output.append(tijd)
+            print(tijd)
+        else:
+            break
+        
+    # close video file
+    cap.release()
+
 
 def main():
-    print("Starting...")
-    numbers = load_reference_image('cijfers.png')
-    find_timestamp(numbers)
+    print("Starting main...")
+    reference_numbers = load_reference_image('cijfers.png')
+    load_video('TLC00032.AVI', reference_numbers)
+    print("All done...")
 
+    
 if __name__ == "__main__":
     main()
     
