@@ -14,7 +14,9 @@ import imutils
 import numpy as np
 import cv2
 import datetime
+#from timeit import Timer
 import timeit
+
 
 def load_reference_image(name):
     """
@@ -22,7 +24,7 @@ def load_reference_image(name):
     Detect how figures look like
     return dict containing shapes
     """
-    print("Loading reference image")
+    print("Loading reference image...")
     # First, load reference image: this image contains the figures 0123456789
     reference = cv2.imread(name)
     reference = cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY)
@@ -40,7 +42,7 @@ def load_reference_image(name):
     # Put each digit in a dict
     digits={}
     for (i, c) in enumerate(reference_contours):
-        print("Looking for number {}".format(i))
+        print("    Looking for number {}".format(i))
         (x, y, w, h) = cv2.boundingRect(c)
         roi = reference[y:y+h, x:x+w]
         digits[i]=roi
@@ -54,6 +56,11 @@ def find_timestamp(frame, digits):
     Detect digits in the frame by applying matchTemplate
     Return the found date/time
     """
+    #print("Looking for timeframe...")
+
+    # Cut out the timestamp
+    frame = frame[703:720, 560:900]
+    
     # Convert frame to greyscale
     grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -65,13 +72,11 @@ def find_timestamp(frame, digits):
         locations = np.where(match_result >= threshold)
 
         for position in np.transpose(locations):
-            # In the timelapse videos the timestamp occurs at line 704
-            if position[0] == 704:
-                found_numbers.append([position[1], number])
+            found_numbers.append([position[1], number])
 
     # Sort output from left to right, return only digits, not position, skip (TLC PRO)200
     found_numbers.sort()
-    output = [ digit[1] for digit in found_numbers[3::] ]
+    output = [ digit[1] for digit in found_numbers ]
 
     # Calculate year, month... into a date
     year = 1000*output[0] + 100*output[1] + 10*output[2] + output[3]
@@ -93,7 +98,20 @@ def load_video(filename, reference_numbers):
     
     # open video file
     cap = cv2.VideoCapture(filename)
+    print("Amount of frames: {}".format(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
 
+    # Nwe method in progress...
+    # Ultimate goal: map(...)
+    output=[]
+    for i in range(0, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))):
+        cap.set(1, i)
+        ret, frame = cap.read()
+        tijd = find_timestamp(frame, reference_numbers)
+        output.append(tijd)
+        print(tijd)
+
+    # old method, for own reference
+    """
     # if video file opened, grab a frame
     output = []
     # needs to be optimized: how to access frames from cap.read(). (need to RTFM)
@@ -102,10 +120,11 @@ def load_video(filename, reference_numbers):
         if ret:
             tijd = find_timestamp(frame, reference_numbers)
             output.append(tijd)
-            print(tijd)
+            #print(tijd)
         else:
             break
-        
+    """
+    
     # close video file
     cap.release()
 
@@ -118,5 +137,12 @@ def main():
 
     
 if __name__ == "__main__":
-    main()
-    
+    # If we're started directly, call main() via a callable to measure performance
+    t = timeit.Timer(lambda: main())
+    print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
+
+    """
+        Timings:
+            - Full frame analysis 34-38 sec
+            - Frame cut-out 2-8 sec
+    """
