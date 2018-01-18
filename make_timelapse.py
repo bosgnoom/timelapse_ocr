@@ -14,8 +14,9 @@ import imutils
 import numpy as np
 import cv2
 import datetime
-#from timeit import Timer
 import timeit
+import glob
+import multiprocessing
 
 
 def load_reference_image(name):
@@ -102,6 +103,7 @@ def load_video(filename, reference_numbers):
 
     # Nwe method in progress...
     # Ultimate goal: map(...)
+    """
     output=[]
     for i in range(0, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))):
         cap.set(1, i)
@@ -123,16 +125,24 @@ def load_video(filename, reference_numbers):
             #print(tijd)
         else:
             break
-    """
+
     
     # close video file
     cap.release()
+    return output
 
 
 def main():
     print("Starting main...")
     reference_numbers = load_reference_image('cijfers.png')
-    load_video('TLC00032.AVI', reference_numbers)
+
+    raw_material = [ [x, reference_numbers] for x in glob.glob("*.AVI") ]
+    
+    #timestamps = load_video('TLC00032.AVI', reference_numbers)
+    with multiprocessing.Pool() as pool:
+        timestamps = pool.starmap(load_video, raw_material)
+        
+    print(timestamps)
     print("All done...")
 
     
@@ -140,7 +150,6 @@ if __name__ == "__main__":
     # If we're started directly, call main() via a callable to measure performance
     t = timeit.Timer(lambda: main())
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
-
     """
         Timings:
             - Full frame analysis 34-38 sec
