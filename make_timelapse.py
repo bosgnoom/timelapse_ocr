@@ -41,12 +41,12 @@ def load_reference_image(name):
     reference_contours = contours.sort_contours(reference_contours, method="left-to-right")[0]
 
     # Put each digit in a dict
-    digits={}
+    digits = {}
     for (i, c) in enumerate(reference_contours):
-        print("    Looking for number {}".format(i))
-        (x, y, w, h) = cv2.boundingRect(c)
+        #print("    Looking for number {}".format(i))
+        x, y, w, h = cv2.boundingRect(c)
         roi = reference[y:y+h, x:x+w]
-        digits[i]=roi
+        digits[i] = roi
 
     # Return dict
     return digits
@@ -59,7 +59,7 @@ def find_timestamp(frame, digits):
     """
     #print("Looking for timeframe...")
 
-    # Cut out the timestamp
+    # Look only at the timestamp
     frame = frame[703:720, 560:900]
     
     # Convert frame to greyscale
@@ -72,12 +72,12 @@ def find_timestamp(frame, digits):
         threshold = 0.9
         locations = np.where(match_result >= threshold)
 
-        for position in np.transpose(locations):
-            found_numbers.append([position[1], number])
+        for position in locations[1]:
+            found_numbers.append([position, number])
 
-    # Sort output from left to right, return only digits, not position, skip (TLC PRO)200
+    # Sort output from left to right, return only digits, not the position of the digit in the image
     found_numbers.sort()
-    output = [ digit[1] for digit in found_numbers ]
+    output = [digit[1] for digit in found_numbers]
 
     # Calculate year, month... into a date
     year = 1000*output[0] + 100*output[1] + 10*output[2] + output[3]
@@ -95,25 +95,11 @@ def load_video(filename, reference_numbers):
     """
     Load specified video, print time
     """
-    print("Loading video {}".format(filename))
-    
+
     # open video file
     cap = cv2.VideoCapture(filename)
-    print("Amount of frames: {}".format(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
+    print("Amount of frames in {}: {}".format(filename, cap.get(cv2.CAP_PROP_FRAME_COUNT)))
 
-    # Nwe method in progress...
-    # Ultimate goal: map(...)
-    """
-    output=[]
-    for i in range(0, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))):
-        cap.set(1, i)
-        ret, frame = cap.read()
-        tijd = find_timestamp(frame, reference_numbers)
-        output.append(tijd)
-        print(tijd)
-
-    # old method, for own reference
-    """
     # if video file opened, grab a frame
     output = []
     # needs to be optimized: how to access frames from cap.read(). (need to RTFM)
@@ -126,7 +112,6 @@ def load_video(filename, reference_numbers):
         else:
             break
 
-    
     # close video file
     cap.release()
     return output
@@ -136,10 +121,10 @@ def main():
     print("Starting main...")
     reference_numbers = load_reference_image('cijfers.png')
 
-    raw_material = [ [x, reference_numbers] for x in glob.glob("*.AVI") ]
+    raw_material = [[x, reference_numbers] for x in glob.glob("*.AVI")]
     
-    #timestamps = load_video('TLC00032.AVI', reference_numbers)
-    with multiprocessing.Pool() as pool:
+    # timestamps = load_video('TLC00032.AVI', reference_numbers)
+    with multiprocessing.Pool(processes=1) as pool:
         timestamps = pool.starmap(load_video, raw_material)
         
     print(timestamps)
