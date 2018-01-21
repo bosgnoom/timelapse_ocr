@@ -33,7 +33,7 @@ def load_reference_image(name):
 
     # Find the figures in the reference image
     reference_contours = cv2.findContours(reference, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
+
     # There's a difference in opencv API versions, account for that
     reference_contours = reference_contours[0] if imutils.is_cv2() else reference_contours[1]
 
@@ -43,9 +43,9 @@ def load_reference_image(name):
     # Put each digit in a dict
     digits = {}
     for (i, c) in enumerate(reference_contours):
-        #print("    Looking for number {}".format(i))
+        # print("    Looking for number {}".format(i))
         x, y, w, h = cv2.boundingRect(c)
-        roi = reference[y:y+h, x:x+w]
+        roi = reference[y:y + h, x:x + w]
         digits[i] = roi
 
     # Return dict
@@ -57,11 +57,11 @@ def find_timestamp(frame, digits):
     Detect digits in the frame by applying matchTemplate
     Return the found date/time
     """
-    #print("Looking for timeframe...")
+    # print("Looking for timeframe...")
 
     # Look only at the timestamp
     frame = frame[703:720, 560:900]
-    
+
     # Convert frame to greyscale
     grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -80,37 +80,37 @@ def find_timestamp(frame, digits):
     output = [digit[1] for digit in found_numbers]
 
     # Calculate year, month... into a date
-    year = 1000*output[0] + 100*output[1] + 10*output[2] + output[3]
-    month = 10*output[4] + output[5]
-    day = 10*output[6] + output[7]
-    hour = 10*output[8] + output[9]
-    minute = 10*output[10] + output[11]
-    second = 10*output[12] + output[13]
+    year = 1000 * output[0] + 100 * output[1] + 10 * output[2] + output[3]
+    month = 10 * output[4] + output[5]
+    day = 10 * output[6] + output[7]
+    hour = 10 * output[8] + output[9]
+    minute = 10 * output[10] + output[11]
+    second = 10 * output[12] + output[13]
     datum = datetime.datetime(year, month, day, hour, minute, second)
 
     return datum
 
 
-def load_video(filename, reference_numbers):
+def analyze_video(filename, reference_numbers):
     """
-    Load specified video, print time
+    Load specified video, detect time from each frame
+    Return [filename, frame_number, datetime]
     """
-
+    print("{} is analyzing {}...".format(multiprocessing.current_process().name, filename))
     # open video file
     cap = cv2.VideoCapture(filename)
     print("Amount of frames in {}: {}".format(filename, cap.get(cv2.CAP_PROP_FRAME_COUNT)))
 
     # if video file opened, grab a frame
     output = []
-    # needs to be optimized: how to access frames from cap.read(). (need to RTFM)
-    while cap.isOpened():
+    ret = cap.isOpened()
+    while ret:
         ret, frame = cap.read()
         if ret:
             tijd = find_timestamp(frame, reference_numbers)
-            output.append(tijd)
-            #print(tijd)
-        else:
-            break
+            output.append([filename,
+                           cap.get(int(cv2.CAP_PROP_POS_FRAMES)),
+                           tijd])
 
     # close video file
     cap.release()
@@ -122,21 +122,18 @@ def main():
     reference_numbers = load_reference_image('cijfers.png')
 
     raw_material = [[x, reference_numbers] for x in glob.glob("*.AVI")]
-    
-    # timestamps = load_video('TLC00032.AVI', reference_numbers)
-    with multiprocessing.Pool(processes=1) as pool:
-        timestamps = pool.starmap(load_video, raw_material)
-        
+
+    with multiprocessing.Pool(processes=4) as pool:
+        timestamps = pool.starmap(analyze_video, raw_material)
+
+    # Flatten results in timestamps
+    timestamps = [entry for sublist in timestamps for entry in sublist]
     print(timestamps)
+    print("Amount of items in timestamps: {}".format(len(timestamps)))
     print("All done...")
 
-    
+
 if __name__ == "__main__":
     # If we're started directly, call main() via a callable to measure performance
     t = timeit.Timer(lambda: main())
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
-    """
-        Timings:
-            - Full frame analysis 34-38 sec
-            - Frame cut-out 2-8 sec
-    """
