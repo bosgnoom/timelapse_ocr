@@ -123,7 +123,7 @@ def main():
 
     raw_material = [[x, reference_numbers] for x in glob.glob("*.AVI")]
 
-    with multiprocessing.Pool(processes=4) as pool:
+    with multiprocessing.Pool(processes=1) as pool:
         timestamps = pool.starmap(analyze_video, raw_material)
 
     # Flatten results in timestamps
