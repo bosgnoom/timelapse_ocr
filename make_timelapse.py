@@ -17,6 +17,7 @@ import datetime
 import timeit
 import glob
 import multiprocessing
+import os
 
 
 def load_reference_image(name):
@@ -96,10 +97,13 @@ def analyze_video(filename, reference_numbers):
     Load specified video, detect time from each frame
     Return [filename, frame_number, datetime]
     """
-    print("{} is analyzing {}...".format(multiprocessing.current_process().name, filename))
+    print("{}: Analyzing {}...".format(
+        multiprocessing.current_process().name, filename))
+
     # open video file
     cap = cv2.VideoCapture(filename)
-    print("Amount of frames in {}: {}".format(filename, cap.get(cv2.CAP_PROP_FRAME_COUNT)))
+    print("{}: Amount of frames in {}: {}".format(
+        multiprocessing.current_process().name, filename, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))))
 
     # if video file opened, grab a frame
     output = []
@@ -108,8 +112,11 @@ def analyze_video(filename, reference_numbers):
         ret, frame = cap.read()
         if ret:
             tijd = find_timestamp(frame, reference_numbers)
+            # iets = tijd.strftime("img_%Y-%m-%d-%H%M%S.png")
+            # cv2.imwrite("c:\datastore\hal_2\{}".format(iets), frame)
+            # print("Tijdstip: {}".format(iets))
             output.append([filename,
-                           cap.get(int(cv2.CAP_PROP_POS_FRAMES)),
+                           int(cap.get(cv2.CAP_PROP_POS_FRAMES)),
                            tijd])
 
     # close video file
@@ -119,18 +126,23 @@ def analyze_video(filename, reference_numbers):
 
 def main():
     print("Starting main...")
+
+    # Load the image containing the figures to recognize.
     reference_numbers = load_reference_image('cijfers.png')
 
+    # Load the list of video files to process
     raw_material = [[x, reference_numbers] for x in glob.glob("*.AVI")]
 
-    with multiprocessing.Pool(processes=1) as pool:
+    # Recognize the timestamps in the video files
+    with multiprocessing.Pool(processes=4) as pool:
         timestamps = pool.starmap(analyze_video, raw_material)
 
-    # Flatten results in timestamps
+    # Flatten the results in timestamps
     timestamps = [entry for sublist in timestamps for entry in sublist]
+
     print(timestamps)
-    print("Amount of items in timestamps: {}".format(len(timestamps)))
-    print("All done...")
+    print('Amount of items in timestamps: {}'.format(len(timestamps)))
+    print('All done...')
 
 
 if __name__ == "__main__":
