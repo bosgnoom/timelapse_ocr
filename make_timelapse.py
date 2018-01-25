@@ -18,6 +18,7 @@ import timeit
 import glob
 import multiprocessing
 import os
+from mutagen.mp3 import MP3
 
 
 def load_reference_image(name):
@@ -124,6 +125,20 @@ def analyze_video(filename, reference_numbers):
     return output
 
 
+def no_weekend(time_of_day):
+    """
+    Check what day of the week the time_of_day is
+    Return true for weekdays, false for weekends
+    """
+
+    return time_of_day.weekday() < 5
+
+
+def count_the_days(collection):
+    days = [day[2].strftime("%Y%m%d") for day in collection]
+    return len(set(days))
+
+
 def main():
     print("Starting main...")
 
@@ -131,7 +146,7 @@ def main():
     reference_numbers = load_reference_image('cijfers.png')
 
     # Load the list of video files to process
-    raw_material = [[x, reference_numbers] for x in glob.glob("*.AVI")]
+    raw_material = [[x, reference_numbers] for x in glob.glob("*.AVI")]     # TODO: input from argument
 
     # Recognize the timestamps in the video files
     with multiprocessing.Pool(processes=4) as pool:
@@ -140,8 +155,37 @@ def main():
     # Flatten the results in timestamps
     timestamps = [entry for sublist in timestamps for entry in sublist]
 
-    print(timestamps)
-    print('Amount of items in timestamps: {}'.format(len(timestamps)))
+    # Skip weekends
+    timestamps = [frame for frame in timestamps if no_weekend(frame[2])]
+
+    # check length of timelapse music file, calculate the needed frame rate
+    audio_file = MP3('Housewife.mp3')   # TODO: input from argument
+    print("Length of audio file: {}".format(audio_file.info.length))
+
+    # Calculate the total amount of frames needed
+    target_fps = 30     # TODO: 30 (fps) from argument
+    amount_of_frames_needed = target_fps * audio_file.info.length
+
+    # Either reduce the amount of frames needed, or lower the frame rate
+    if amount_of_frames_needed < len(timestamps):       # TODO: should be >
+        # We need more frames than available, so calculate reduced frame rate to fill video
+        print("Amount of frames too low. Calculating new frame rate...")
+        target_fps = len(timestamps) / audio_file.info.length
+        print('Calculated frame rate: {}'.format(target_fps))
+    else:
+        # There are more frames than needed, so reduce the amount of frames
+        # TODO: check which frames (which time) to include in the final video
+        # Something like timestamps = [frame for frame in timestamps if is_this_frame_needed(frame[2])]
+        amount_of_days = count_the_days(timestamps)
+        total_frames_per_day = len(timestamps) / amount_of_days
+        # TODO: calculate start_time correctly
+        start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=(total_frames_per_day / (2*5)))
+        print(amount_of_days, total_frames_per_day, start_time)
+        print("Amount of days in videos found: {}".format(amount_of_days))
+
+    # TODO: calculate averaged frame in
+    # result = [process_frame(frame) for frame in timestamps
+
     print('All done...')
 
 
