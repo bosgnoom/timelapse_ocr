@@ -139,6 +139,20 @@ def count_the_days(collection):
     return len(set(days))
 
 
+def is_this_frame_needed(time_frame, start_time, stop_time):
+    """
+    Check if time_frame is within start and stop time
+    :param time_frame: which timestamp to check
+    :param start_time: starting time
+    :param stop_time:  end time
+    :return: true/false
+    """
+    time_to_match = datetime.timedelta(hours=time_frame.hour, minutes=time_frame.minute, seconds=time_frame.second)
+    return_value = start_time < time_to_match < stop_time
+    # print("{}: {}".format(time_frame, return_value))
+    return return_value
+
+
 def main():
     print("Starting main...")
 
@@ -155,33 +169,37 @@ def main():
     # Flatten the results in timestamps
     timestamps = [entry for sublist in timestamps for entry in sublist]
 
-    # Skip weekends
-    timestamps = [frame for frame in timestamps if no_weekend(frame[2])]
-
     # check length of timelapse music file, calculate the needed frame rate
     audio_file = MP3('Housewife.mp3')   # TODO: input from argument
-    print("Length of audio file: {}".format(audio_file.info.length))
+    print("Length of audio file: {} sec".format(audio_file.info.length))
+
+    # Skip weekends
+    timestamps = [frame for frame in timestamps if no_weekend(frame[2])]
+    print("Amount of frames found: {}".format(len(timestamps)))
 
     # Calculate the total amount of frames needed
     target_fps = 30     # TODO: 30 (fps) from argument
     amount_of_frames_needed = target_fps * audio_file.info.length
+    amount_of_frames_needed = 100 # TODO: remove this, just for testing...
 
     # Either reduce the amount of frames needed, or lower the frame rate
-    if amount_of_frames_needed < len(timestamps):       # TODO: should be >
+    if amount_of_frames_needed > len(timestamps):
         # We need more frames than available, so calculate reduced frame rate to fill video
         print("Amount of frames too low. Calculating new frame rate...")
         target_fps = len(timestamps) / audio_file.info.length
         print('Calculated frame rate: {}'.format(target_fps))
     else:
-        # There are more frames than needed, so reduce the amount of frames
-        # TODO: check which frames (which time) to include in the final video
-        # Something like timestamps = [frame for frame in timestamps if is_this_frame_needed(frame[2])]
+        # There are more frames than needed, reduce the amount of frames
         amount_of_days = count_the_days(timestamps)
         total_frames_per_day = len(timestamps) / amount_of_days
-        # TODO: calculate start_time correctly
-        start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=(total_frames_per_day / (2*5)))
-        print(amount_of_days, total_frames_per_day, start_time)
+
         print("Amount of days in videos found: {}".format(amount_of_days))
+        print("Reducing to {:1.1f} frames per day...".format(total_frames_per_day))
+
+        start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
+        stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
+
+        timestamps = [frame for frame in timestamps if is_this_frame_needed(frame[2], start_time, stop_time)]
 
     # TODO: calculate averaged frame in
     # result = [process_frame(frame) for frame in timestamps
