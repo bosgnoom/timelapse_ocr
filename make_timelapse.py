@@ -17,7 +17,8 @@ import datetime
 import timeit
 import glob
 import multiprocessing
-import os
+from itertools import repeat
+import pprint
 from mutagen.mp3 import MP3
 
 
@@ -96,7 +97,7 @@ def find_timestamp(frame, digits):
 def analyze_video(filename, reference_numbers):
     """
     Load specified video, detect time from each frame
-    Return [filename, frame_number, datetime]
+    Return [filename, [frame_number, datetime]]
     """
     print("{}: Analyzing {}...".format(
         multiprocessing.current_process().name, filename))
@@ -113,30 +114,23 @@ def analyze_video(filename, reference_numbers):
         ret, frame = cap.read()
         if ret:
             tijd = find_timestamp(frame, reference_numbers)
-            # iets = tijd.strftime("img_%Y-%m-%d-%H%M%S.png")
-            # cv2.imwrite("c:\datastore\hal_2\{}".format(iets), frame)
-            # print("Tijdstip: {}".format(iets))
-            output.append([filename,
-                           int(cap.get(cv2.CAP_PROP_POS_FRAMES)),
-                           tijd])
+            # Skip weekends
+            if tijd.weekday() < 5:
+                output.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)), tijd])
 
     # close video file
     cap.release()
-    return output
+    return [filename, output]
 
 
-def no_weekend(time_of_day):
+def fetch_timestamps(collection):
     """
-    Check what day of the week the time_of_day is
-    Return true for weekdays, false for weekends
+    Flatten the collection of video files and timestamps to a list of timestamps
+    :param collection: timestamps
+    :return: number of datetimes found
     """
-
-    return time_of_day.weekday() < 5
-
-
-def count_the_days(collection):
-    days = [day[2].strftime("%Y%m%d") for day in collection]
-    return len(set(days))
+    times = [frame[1] for video_file in collection for frame in video_file[1]]
+    return times
 
 
 def is_this_frame_needed(time_frame, start_time, stop_time):
@@ -153,6 +147,24 @@ def is_this_frame_needed(time_frame, start_time, stop_time):
     return return_value
 
 
+def process_frame(frame):
+    print(frame[0])
+    cap = cv2.VideoCapture('TLC00001.AVI')
+    if cap.isOpened():
+        print(cap.get(cv2.CAP_PROP_POS_FRAMES))
+        if (frame[1] > 1) and (frame[1] < cap.get(cv2.CAP_PROP_FRAME_COUNT) - 1):
+            print("frame ok")
+            cap.set(1, frame[1] - 1)
+            ret1, frame1 = cap.read()
+            ret2, frame2 = cap.read()
+            #ret3, frame3 = cap.read()
+            frame_result = cv2.addWeighted(frame1, 0.3, frame2, 0.7, 0)
+            # frame_result = cv2.addWeighted(frame_result, 0.7, frame3, 0.3, 0)
+            cv2.imwrite("c:/datastore/1.png", frame_result)
+    cap.release()
+    return True
+
+
 def main():
     print("Starting main...")
 
@@ -160,38 +172,34 @@ def main():
     reference_numbers = load_reference_image('cijfers.png')
 
     # Load the list of video files to process
-    raw_material = [[x, reference_numbers] for x in glob.glob("*.AVI")]     # TODO: input from argument
+    raw_material = [avi_file for avi_file in glob.glob("*.AVI")]     # TODO: input from argument
 
     # Recognize the timestamps in the video files
     with multiprocessing.Pool(processes=4) as pool:
-        timestamps = pool.starmap(analyze_video, raw_material)
+        timestamps = pool.starmap(analyze_video, zip(raw_material, repeat(reference_numbers)))
 
-    # Flatten the results in timestamps
-    timestamps = [entry for sublist in timestamps for entry in sublist]
-
-    # check length of timelapse music file, calculate the needed frame rate
+    # check length of time lapse music file, calculate the needed frame rate
     audio_file = MP3('Housewife.mp3')   # TODO: input from argument
     print("Length of audio file: {} sec".format(audio_file.info.length))
 
-    # Skip weekends
-    timestamps = [frame for frame in timestamps if no_weekend(frame[2])]
-    print("Amount of frames found: {}".format(len(timestamps)))
-
     # Calculate the total amount of frames needed
-    target_fps = 30     # TODO: 30 (fps) from argument
+    target_fps = 30     # TODO: 30 (fps) from argument (or rather maximum frame rate)
     amount_of_frames_needed = target_fps * audio_file.info.length
-    amount_of_frames_needed = 100 # TODO: remove this, just for testing...
+    amount_of_frames_needed = 100   # TODO: remove this, just for testing...
 
+    # Calculate the target_fps
     # Either reduce the amount of frames needed, or lower the frame rate
-    if amount_of_frames_needed > len(timestamps):
+    all_timestamps = fetch_timestamps(timestamps)
+    if amount_of_frames_needed > len(all_timestamps):
         # We need more frames than available, so calculate reduced frame rate to fill video
         print("Amount of frames too low. Calculating new frame rate...")
-        target_fps = len(timestamps) / audio_file.info.length
+        target_fps = len(all_timestamps) / audio_file.info.length
         print('Calculated frame rate: {}'.format(target_fps))
     else:
         # There are more frames than needed, reduce the amount of frames
-        amount_of_days = count_the_days(timestamps)
-        total_frames_per_day = len(timestamps) / amount_of_days
+        days = [day.strftime("%Y%m%d") for day in all_timestamps]
+        amount_of_days = len(set(days))
+        total_frames_per_day = len(all_timestamps) / amount_of_days
 
         print("Amount of days in videos found: {}".format(amount_of_days))
         print("Reducing to {:1.1f} frames per day...".format(total_frames_per_day))
@@ -199,10 +207,22 @@ def main():
         start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
         stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
 
-        timestamps = [frame for frame in timestamps if is_this_frame_needed(frame[2], start_time, stop_time)]
+        selected_timestamps = []
+        for video_file in timestamps:
+            times = []
+            for frames in video_file[1]:
+                time_frame = frames[1]
+                time_to_match = datetime.timedelta(
+                        hours=time_frame.hour,
+                        minutes=time_frame.minute,
+                        seconds=time_frame.second)
+                if start_time < time_to_match < stop_time:
+                    times.append(frames)
+            selected_timestamps.append([video_file, times])
 
     # TODO: calculate averaged frame in
     # result = [process_frame(frame) for frame in timestamps
+    #process_frame(timestamps[0])
 
     print('All done...')
 

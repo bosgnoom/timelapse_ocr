@@ -2,7 +2,7 @@
 
 import multiprocessing
 import time
-import os
+from itertools import repeat
 import timeit
 
 
@@ -15,10 +15,10 @@ def doet_het_werk(a, b):
 
 def main():
     piep_piep = ["Ja", "Nee", "Misschien", "Nog wat", "zo meer", "laatste"]
-    supr = [[x, "iets"] for x in piep_piep]
+    #supr = [[x, "iets"] for x in piep_piep]
 
     with multiprocessing.Pool() as pool:
-        results = pool.starmap(doet_het_werk, supr)
+        results = pool.starmap(doet_het_werk, zip(piep_piep, repeat("iets"))) #supr)
     print(results)
 
 
