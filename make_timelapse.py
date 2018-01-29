@@ -18,8 +18,13 @@ import timeit
 import glob
 import multiprocessing
 from itertools import repeat
-import pprint
 from mutagen.mp3 import MP3
+import logging
+
+# Start logger
+logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(funcName)s: %(message)s')
+# wow... as global variable? I thought this was a no-no...
+logger = logging.getLogger(__name__)
 
 
 def load_reference_image(name):
@@ -28,7 +33,7 @@ def load_reference_image(name):
     Detect how figures look like
     return dict containing shapes
     """
-    print("Loading reference image...")
+    logger.info("Loading reference image...")
     # First, load reference image: this image contains the figures 0123456789
     reference = cv2.imread(name)
     reference = cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY)
@@ -45,8 +50,8 @@ def load_reference_image(name):
 
     # Put each digit in a dict
     digits = {}
-    for (i, c) in enumerate(reference_contours):
-        # print("    Looking for number {}".format(i))
+    for i, c in enumerate(reference_contours):
+        logger.debug("Looking for number {}".format(i))
         x, y, w, h = cv2.boundingRect(c)
         roi = reference[y:y + h, x:x + w]
         digits[i] = roi
@@ -60,7 +65,7 @@ def find_timestamp(frame, digits):
     Detect digits in the frame by applying matchTemplate
     Return the found date/time
     """
-    # print("Looking for timeframe...")
+    logger.debug("Looking for timeframe...")
 
     # Look only at the timestamp
     frame = frame[703:720, 560:900]
@@ -91,6 +96,7 @@ def find_timestamp(frame, digits):
     second = 10 * output[12] + output[13]
     datum = datetime.datetime(year, month, day, hour, minute, second)
 
+    logger.debug("Found time: {}".format(datum))
     return datum
 
 
@@ -99,12 +105,12 @@ def analyze_video(filename, reference_numbers):
     Load specified video, detect time from each frame
     Return [filename, [frame_number, datetime]]
     """
-    print("{}: Analyzing {}...".format(
+    logger.info("{}: Analyzing {}...".format(
         multiprocessing.current_process().name, filename))
 
     # open video file
     cap = cv2.VideoCapture(filename)
-    print("{}: Amount of frames in {}: {}".format(
+    logger.info("{}: Amount of frames in {}: {}".format(
         multiprocessing.current_process().name, filename, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))))
 
     # if video file opened, grab a frame
@@ -113,10 +119,11 @@ def analyze_video(filename, reference_numbers):
     while ret:
         ret, frame = cap.read()
         if ret:
-            tijd = find_timestamp(frame, reference_numbers)
+            # There's a frame decoded
+            epoch = find_timestamp(frame, reference_numbers)
             # Skip weekends
-            if tijd.weekday() < 5:
-                output.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)), tijd])
+            if epoch.weekday() < 5:
+                output.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1, epoch])
 
     # close video file
     cap.release()
@@ -129,44 +136,34 @@ def fetch_timestamps(collection):
     :param collection: timestamps
     :return: number of datetimes found
     """
+    # Double list comprehension... Still trying to comprehense
     times = [frame[1] for video_file in collection for frame in video_file[1]]
     return times
 
 
-def is_this_frame_needed(time_frame, start_time, stop_time):
-    """
-    Check if time_frame is within start and stop time
-    :param time_frame: which timestamp to check
-    :param start_time: starting time
-    :param stop_time:  end time
-    :return: true/false
-    """
-    time_to_match = datetime.timedelta(hours=time_frame.hour, minutes=time_frame.minute, seconds=time_frame.second)
-    return_value = start_time < time_to_match < stop_time
-    # print("{}: {}".format(time_frame, return_value))
-    return return_value
-
-
 def process_frame(frame):
-    print(frame[0])
+    logger.debug('Processing images from: {}'.format(frame[0]))
     cap = cv2.VideoCapture('TLC00001.AVI')
     if cap.isOpened():
-        print(cap.get(cv2.CAP_PROP_POS_FRAMES))
-        if (frame[1] > 1) and (frame[1] < cap.get(cv2.CAP_PROP_FRAME_COUNT) - 1):
-            print("frame ok")
-            cap.set(1, frame[1] - 1)
-            ret1, frame1 = cap.read()
-            ret2, frame2 = cap.read()
-            #ret3, frame3 = cap.read()
-            frame_result = cv2.addWeighted(frame1, 0.3, frame2, 0.7, 0)
-            # frame_result = cv2.addWeighted(frame_result, 0.7, frame3, 0.3, 0)
-            cv2.imwrite("c:/datastore/1.png", frame_result)
+        for image in frame[1]:
+            if (image[0] >= 1) and (image[0] < cap.get(cv2.CAP_PROP_FRAME_COUNT) - 1):
+                logger.debug('Decoding frame: {}'.format(image[0]))
+                cap.set(1, image[0] - 1)
+                ret1, frame1 = cap.read()
+                ret2, frame2 = cap.read()
+                ret3, frame3 = cap.read()
+                frame_result = cv2.addWeighted(frame1, 0.5, frame2, 0.5, 0)
+                frame_result = cv2.addWeighted(frame_result, 0.666, frame3, 0.333, 0)
+                file_name = "c:/datastore/tmp/img{}.png".format(image[1].strftime('%Y%m%d%H%M'))
+                logger.debug("Writing to: {}".format(file_name))
+                cv2.imwrite(file_name, frame_result)
+
     cap.release()
     return True
 
 
 def main():
-    print("Starting main...")
+    logger.info("Starting main...")
 
     # Load the image containing the figures to recognize.
     reference_numbers = load_reference_image('cijfers.png')
@@ -180,7 +177,7 @@ def main():
 
     # check length of time lapse music file, calculate the needed frame rate
     audio_file = MP3('Housewife.mp3')   # TODO: input from argument
-    print("Length of audio file: {} sec".format(audio_file.info.length))
+    logger.info("Length of audio file: {} sec".format(audio_file.info.length))
 
     # Calculate the total amount of frames needed
     target_fps = 30     # TODO: 30 (fps) from argument (or rather maximum frame rate)
@@ -192,21 +189,24 @@ def main():
     all_timestamps = fetch_timestamps(timestamps)
     if amount_of_frames_needed > len(all_timestamps):
         # We need more frames than available, so calculate reduced frame rate to fill video
-        print("Amount of frames too low. Calculating new frame rate...")
+        logger.info("Amount of frames too low. Calculating new frame rate...")
         target_fps = len(all_timestamps) / audio_file.info.length
-        print('Calculated frame rate: {}'.format(target_fps))
+        logger.info('Calculated frame rate: {}'.format(target_fps))
     else:
         # There are more frames than needed, reduce the amount of frames
+        logger.info("Enough frames, checking which ones are needed...")
         days = [day.strftime("%Y%m%d") for day in all_timestamps]
+        # By converting into a set only unique values remain
         amount_of_days = len(set(days))
         total_frames_per_day = len(all_timestamps) / amount_of_days
 
-        print("Amount of days in videos found: {}".format(amount_of_days))
-        print("Reducing to {:1.1f} frames per day...".format(total_frames_per_day))
+        logger.info("Amount of days in videos found: {}".format(amount_of_days))
+        logger.info("Reducing to {:1.1f} frames per day...".format(total_frames_per_day))
 
         start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
         stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
 
+        logger.info("Selecting frames from {} to {}".format(start_time, stop_time))
         selected_timestamps = []
         for video_file in timestamps:
             times = []
@@ -218,16 +218,17 @@ def main():
                         seconds=time_frame.second)
                 if start_time < time_to_match < stop_time:
                     times.append(frames)
-            selected_timestamps.append([video_file, times])
+            selected_timestamps.append([video_file[0], times])
+        timestamps = selected_timestamps
 
     # TODO: calculate averaged frame in
     # result = [process_frame(frame) for frame in timestamps
-    #process_frame(timestamps[0])
+    process_frame(timestamps[0])
 
-    print('All done...')
+    logger.info('All done...')
 
 
 if __name__ == "__main__":
     # If we're started directly, call main() via a callable to measure performance
     t = timeit.Timer(lambda: main())
-    print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
+    logger.info("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
