@@ -20,10 +20,12 @@ import multiprocessing
 from itertools import repeat
 from mutagen.mp3 import MP3
 import logging
+import os
+
 
 # Start logger
-logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(funcName)s: %(message)s')
-# wow... as global variable? I thought this was a no-no...
+logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(funcName)s: %(message)s')
+# As global variable? Hmm... OK then...
 logger = logging.getLogger(__name__)
 
 
@@ -142,24 +144,108 @@ def fetch_timestamps(collection):
 
 
 def process_frame(frame):
-    logger.debug('Processing images from: {}'.format(frame[0]))
-    cap = cv2.VideoCapture('TLC00001.AVI')
+    """
+    Access each video file a second time: get specified frames, calculate averaged frame
+    and write image to img folder
+    :param frame: [video_file, [[frame number, timestamp], [...]]
+    :return: True for now... TODO: add return value to check for processing
+    """
+    logger.info('{}: Processing images from: {}'.format(multiprocessing.current_process().name, frame[0]))
+
+    cap = cv2.VideoCapture(frame[0])
     if cap.isOpened():
         for image in frame[1]:
             if (image[0] >= 1) and (image[0] < cap.get(cv2.CAP_PROP_FRAME_COUNT) - 1):
                 logger.debug('Decoding frame: {}'.format(image[0]))
-                cap.set(1, image[0] - 1)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, image[0] - 1)
                 ret1, frame1 = cap.read()
                 ret2, frame2 = cap.read()
                 ret3, frame3 = cap.read()
-                frame_result = cv2.addWeighted(frame1, 0.5, frame2, 0.5, 0)
-                frame_result = cv2.addWeighted(frame_result, 0.666, frame3, 0.333, 0)
+                frame_result = cv2.addWeighted(frame1, 0.333, frame2, 0.666, 0)
+                frame_result = cv2.addWeighted(frame_result, 0.75, frame3, 0.25, 0)
                 file_name = "c:/datastore/tmp/img{}.png".format(image[1].strftime('%Y%m%d%H%M'))
                 logger.debug("Writing to: {}".format(file_name))
                 cv2.imwrite(file_name, frame_result)
 
     cap.release()
     return True
+
+
+def select_timestamps(all_timestamps, timestamps):
+    """
+    Take the list of timeframes, select which ones to use
+    :param all_timestamps: list of all timestamps found
+    :param timestamps: original list
+    :return: list of selected timeframes
+    """
+    logger.info("Enough frames, checking which ones are needed...")
+    days = [day.strftime("%Y%m%d") for day in all_timestamps]
+    # By converting into a set only unique values remain
+    amount_of_days = len(set(days))
+    total_frames_per_day = len(all_timestamps) / amount_of_days
+
+    logger.info("Amount of days in videos found: {}".format(amount_of_days))
+    logger.info("Reducing to {:1.1f} frames per day...".format(total_frames_per_day))
+
+    start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
+    stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
+
+    logger.info("Selecting frames from {} to {}".format(start_time, stop_time))
+    selected_timestamps = []
+    for video_file in timestamps:
+        times = []
+        for frames in video_file[1]:
+            time_frame = frames[1]
+            time_to_match = datetime.timedelta(
+                hours=time_frame.hour,
+                minutes=time_frame.minute,
+                seconds=time_frame.second)
+            if start_time < time_to_match < stop_time:
+                times.append(frames)
+        selected_timestamps.append([video_file[0], times])
+
+    return selected_timestamps
+
+
+def invoke_ffmpeg(target_fps):
+    """
+        Prepare ffmpeg command and execute
+        target_fps is the number of frames per second for the movie
+        codec based on x264 and aac audio (mobile phone proof settings)
+        """
+    # First, rename all files to img0xxxx.png to compensate for windows ffmpeg (missing glob)
+    file_list = [file for file in os.listdir('c:/Datastore/tmp') if file.endswith('.png')]
+    file_list.sort()
+
+    for i, file_name in enumerate(file_list):
+        print("{}-{}".format(i, file_name))
+        os.rename('c:/Datastore/tmp/' + file_name, 'c:/Datastore/tmp/' + 'img{:05d}.png'.format(i))
+
+    command = []
+    command.append('ffmpeg')
+
+    # Convert images into video
+    command.append("-y -r {} -i c:/Datastore/tmp/img0%4d.png".format(target_fps))
+
+    # Add soundtrack
+    command.append('-i {}'.format('housewife.mp3'))
+
+    # Set video codec
+    command.append('-vcodec libx264 -profile:v high -preset slow')
+    command.append('-pix_fmt yuv420p')
+    command.append('-vprofile baseline -movflags +faststart')
+    command.append('-strict -2 -acodec aac -b:a 128k')
+
+    # Cut video/audio stream by the shortest one
+    command.append('-shortest')
+
+    # Filename
+    command.append('test.mp4')
+
+    command = ' '.join(command)
+
+    result = os.system(str(command))
+    logger.debug(result)
 
 
 def main():
@@ -191,39 +277,18 @@ def main():
         # We need more frames than available, so calculate reduced frame rate to fill video
         logger.info("Amount of frames too low. Calculating new frame rate...")
         target_fps = len(all_timestamps) / audio_file.info.length
-        logger.info('Calculated frame rate: {}'.format(target_fps))
+        logger.info('Calculated frame rate: {:0.3f}'.format(target_fps))
     else:
         # There are more frames than needed, reduce the amount of frames
-        logger.info("Enough frames, checking which ones are needed...")
-        days = [day.strftime("%Y%m%d") for day in all_timestamps]
-        # By converting into a set only unique values remain
-        amount_of_days = len(set(days))
-        total_frames_per_day = len(all_timestamps) / amount_of_days
+        timestamps = select_timestamps(all_timestamps, timestamps)
 
-        logger.info("Amount of days in videos found: {}".format(amount_of_days))
-        logger.info("Reducing to {:1.1f} frames per day...".format(total_frames_per_day))
+    # Process video files, calculate averaged frame and write them to disk
+    with multiprocessing.Pool(processes=4) as pool:
+        # result = pool.starmap(process_frame, zip(timestamps))
+        pass
 
-        start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
-        stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
-
-        logger.info("Selecting frames from {} to {}".format(start_time, stop_time))
-        selected_timestamps = []
-        for video_file in timestamps:
-            times = []
-            for frames in video_file[1]:
-                time_frame = frames[1]
-                time_to_match = datetime.timedelta(
-                        hours=time_frame.hour,
-                        minutes=time_frame.minute,
-                        seconds=time_frame.second)
-                if start_time < time_to_match < stop_time:
-                    times.append(frames)
-            selected_timestamps.append([video_file[0], times])
-        timestamps = selected_timestamps
-
-    # TODO: calculate averaged frame in
-    # result = [process_frame(frame) for frame in timestamps
-    process_frame(timestamps[0])
+    # Invoke ffmpeg
+    invoke_ffmpeg(target_fps)
 
     logger.info('All done...')
 

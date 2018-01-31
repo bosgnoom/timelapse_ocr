@@ -1,6 +1,7 @@
 
 *.AVI
 *.mp3
+*.mp4
 Install/*
 venv/*
 .idea/*
