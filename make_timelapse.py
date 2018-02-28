@@ -24,7 +24,7 @@ import os
 
 
 # Start logger
-logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(funcName)s: %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(funcName)s: %(message)s')
 # As global variable? Hmm... OK then...
 logger = logging.getLogger(__name__)
 
@@ -89,17 +89,23 @@ def find_timestamp(frame, digits):
     found_numbers.sort()
     output = [digit[1] for digit in found_numbers]
 
-    # Calculate year, month... into a date
-    year = 1000 * output[0] + 100 * output[1] + 10 * output[2] + output[3]
-    month = 10 * output[4] + output[5]
-    day = 10 * output[6] + output[7]
-    hour = 10 * output[8] + output[9]
-    minute = 10 * output[10] + output[11]
-    second = 10 * output[12] + output[13]
-    datum = datetime.datetime(year, month, day, hour, minute, second)
+    if len(output) == 14:
+        # Calculate year, month... into a date
+        year = 1000 * output[0] + 100 * output[1] + 10 * output[2] + output[3]
+        month = 10 * output[4] + output[5]
+        day = 10 * output[6] + output[7]
+        hour = 10 * output[8] + output[9]
+        minute = 10 * output[10] + output[11]
+        second = 10 * output[12] + output[13]
+        datum = datetime.datetime(year, month, day, hour, minute, second)
 
-    logger.debug("Found time: {}".format(datum))
-    return datum
+        logger.debug("Found time: {}".format(datum))
+        return datum
+
+    else:
+        logger.error("Output: {}".format(output))
+        logger.error("FAILURE IN RECOGNIZING FRAME!")
+        return -1
 
 
 def analyze_video(filename, reference_numbers):
@@ -121,10 +127,10 @@ def analyze_video(filename, reference_numbers):
     while ret:
         ret, frame = cap.read()
         if ret:
-            # There's a frame decoded
+            # There's a frame decoded, find the timestamp within
             epoch = find_timestamp(frame, reference_numbers)
-            # Skip weekends
-            if epoch.weekday() < 5:
+            # If there's a result (so, not -1), skip weekends
+            if epoch != -1 and epoch.weekday() < 5:
                 output.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1, epoch])
 
     # close video file
@@ -132,7 +138,7 @@ def analyze_video(filename, reference_numbers):
     return [filename, output]
 
 
-def fetch_timestamps(collection):
+def flatten_timestamps(collection):
     """
     Flatten the collection of video files and timestamps to a list of timestamps
     :param collection: timestamps
@@ -143,11 +149,12 @@ def fetch_timestamps(collection):
     return times
 
 
-def process_frame(frame):
+def process_frame(frame, destination_folder):
     """
     Access each video file a second time: get specified frames, calculate averaged frame
     and write image to img folder
     :param frame: [video_file, [[frame number, timestamp], [...]]
+    :param destination_folder: folder where to write to
     :return: True for now... TODO: add return value to check for processing
     """
     logger.info('{}: Processing images from: {}'.format(multiprocessing.current_process().name, frame[0]))
@@ -163,7 +170,7 @@ def process_frame(frame):
                 ret3, frame3 = cap.read()
                 frame_result = cv2.addWeighted(frame1, 0.333, frame2, 0.666, 0)
                 frame_result = cv2.addWeighted(frame_result, 0.75, frame3, 0.25, 0)
-                file_name = "c:/datastore/tmp/img{}.png".format(image[1].strftime('%Y%m%d%H%M'))
+                file_name = "{}/img{}.png".format(destination_folder, image[1].strftime('%Y%m%d%H%M'))
                 logger.debug("Writing to: {}".format(file_name))
                 cv2.imwrite(file_name, frame_result)
 
@@ -207,25 +214,25 @@ def select_timestamps(all_timestamps, timestamps):
     return selected_timestamps
 
 
-def invoke_ffmpeg(target_fps):
+def invoke_ffmpeg(target_fps, frame_folder):
     """
         Prepare ffmpeg command and execute
         target_fps is the number of frames per second for the movie
         codec based on x264 and aac audio (mobile phone proof settings)
         """
     # First, rename all files to img0xxxx.png to compensate for windows ffmpeg (missing glob)
-    file_list = [file for file in os.listdir('c:/Datastore/tmp') if file.endswith('.png')]
+    file_list = [file for file in os.listdir(frame_folder) if file.endswith('.png')]
     file_list.sort()
 
     for i, file_name in enumerate(file_list):
         print("{}-{}".format(i, file_name))
-        os.rename('c:/Datastore/tmp/' + file_name, 'c:/Datastore/tmp/' + 'img{:05d}.png'.format(i))
+        os.rename(frame_folder + '/' + file_name, frame_folder + '/img{:05d}.png'.format(i))
 
     command = []
     command.append('ffmpeg')
 
     # Convert images into video
-    command.append("-y -r {} -i c:/Datastore/tmp/img0%4d.png".format(target_fps))
+    command.append("-y -r {} -i {}/img0%4d.png".format(target_fps, frame_folder))
 
     # Add soundtrack
     command.append('-i {}'.format('housewife.mp3'))
@@ -248,17 +255,17 @@ def invoke_ffmpeg(target_fps):
     logger.debug(result)
 
 
-def main():
+def main(folder_name):
     logger.info("Starting main...")
 
     # Load the image containing the figures to recognize.
     reference_numbers = load_reference_image('cijfers.png')
 
     # Load the list of video files to process
-    raw_material = [avi_file for avi_file in glob.glob("*.AVI")]     # TODO: input from argument
+    raw_material = [avi_file for avi_file in glob.glob('{0}/*.AVI'.format(folder_name))]
 
     # Recognize the timestamps in the video files
-    with multiprocessing.Pool(processes=4) as pool:
+    with multiprocessing.Pool(processes=1) as pool:
         timestamps = pool.starmap(analyze_video, zip(raw_material, repeat(reference_numbers)))
 
     # check length of time lapse music file, calculate the needed frame rate
@@ -268,32 +275,42 @@ def main():
     # Calculate the total amount of frames needed
     target_fps = 30     # TODO: 30 (fps) from argument (or rather maximum frame rate)
     amount_of_frames_needed = target_fps * audio_file.info.length
-    amount_of_frames_needed = 100   # TODO: remove this, just for testing...
 
     # Calculate the target_fps
     # Either reduce the amount of frames needed, or lower the frame rate
-    all_timestamps = fetch_timestamps(timestamps)
+    all_timestamps = flatten_timestamps(timestamps)
     if amount_of_frames_needed > len(all_timestamps):
         # We need more frames than available, so calculate reduced frame rate to fill video
         logger.info("Amount of frames too low. Calculating new frame rate...")
-        target_fps = len(all_timestamps) / audio_file.info.length
+        target_fps = int(len(all_timestamps) / audio_file.info.length + 0.5)
         logger.info('Calculated frame rate: {:0.3f}'.format(target_fps))
     else:
         # There are more frames than needed, reduce the amount of frames
         timestamps = select_timestamps(all_timestamps, timestamps)
 
     # Process video files, calculate averaged frame and write them to disk
-    with multiprocessing.Pool(processes=4) as pool:
-        # result = pool.starmap(process_frame, zip(timestamps))
-        pass
+    frame_folder = "{}/img".format(folder_name)
+    logger.debug("Frame folder: {}".format(frame_folder))
+
+    if not os.path.exists(frame_folder):
+        os.makedirs(frame_folder)
+    # Empty the img folder
+    for filename in glob.glob("{}/*.png".format(frame_folder)):
+        logger.debug("Removing file: {}".format(filename))
+        os.remove(filename)
+
+    # Process the selected frames
+    with multiprocessing.Pool(processes=1) as pool:
+        result = pool.starmap(process_frame, zip(timestamps, repeat(frame_folder)))
+        # TODO: check result
 
     # Invoke ffmpeg
-    invoke_ffmpeg(target_fps)
+    invoke_ffmpeg(target_fps, frame_folder)
 
     logger.info('All done...')
 
 
 if __name__ == "__main__":
     # If we're started directly, call main() via a callable to measure performance
-    t = timeit.Timer(lambda: main())
+    t = timeit.Timer(lambda: main("C:/Users/pauls/Documents/GitHub/timelapse_ocr/video"))
     logger.info("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
