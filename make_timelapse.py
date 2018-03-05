@@ -33,8 +33,7 @@ import logging
 
 
 # Start logger
-# logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(funcName)s: %(message)s')
-# As global variable? Hmm... OK then...
+logging.basicConfig(format='%(levelname)s:%(funcName)s: %(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -72,22 +71,23 @@ def load_reference_image(name):
     return digits
 
 
-def analyze_video(filename, reference_numbers):
+def analyze_video(video_file, digits, error_folder):
     """
     Load specified video, detect time from each frame
     Return [filename, [frame_number, datetime]]
     """
-    digits = reference_numbers
     logger.info("{}: Analyzing {}...".format(
-        multiprocessing.current_process().name, filename))
+        multiprocessing.current_process().name, video_file))
 
     # open video file
-    cap = cv2.VideoCapture(filename)
+    cap = cv2.VideoCapture(video_file)
     logger.info("{}: Amount of frames in {}: {}".format(
-        multiprocessing.current_process().name, filename, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))))
+        multiprocessing.current_process().name, video_file, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))))
+
+    # Collect the found times here
+    timeframes = []
 
     # if video file opened, grab a frame
-    output = []
     ret = cap.isOpened()
     while ret:
         ret, frame = cap.read()
@@ -111,34 +111,34 @@ def analyze_video(filename, reference_numbers):
 
             # Sort output from left to right, return only digits, not the position of the digit in the image
             found_numbers.sort()
-            output = [digit[1] for digit in found_numbers]
+            numbers = [digit[1] for digit in found_numbers]
 
-            if len(output) == 14:
+            # Process the numbers if there are 14 figures found
+            if len(numbers) == 14:
                 # Calculate year, month... into a date
-                year = 1000 * output[0] + 100 * output[1] + 10 * output[2] + output[3]
-                month = 10 * output[4] + output[5]
-                day = 10 * output[6] + output[7]
-                hour = 10 * output[8] + output[9]
-                minute = 10 * output[10] + output[11]
-                second = 10 * output[12] + output[13]
+                year = 1000 * numbers[0] + 100 * numbers[1] + 10 * numbers[2] + numbers[3]
+                month = 10 * numbers[4] + numbers[5]
+                day = 10 * numbers[6] + numbers[7]
+                hour = 10 * numbers[8] + numbers[9]
+                minute = 10 * numbers[10] + numbers[11]
+                second = 10 * numbers[12] + numbers[13]
                 datum = datetime.datetime(year, month, day, hour, minute, second)
 
                 logger.debug("Found time: {}".format(datum))
-                return datum
+
+                # Skip weekends
+                if datum.weekday() < 5:
+                    timeframes.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1, datum])
 
             else:
-                logger.error("Output: {}".format(output))
                 logger.error("FAILURE IN RECOGNIZING FRAME!")
-
-                return -1
-
-            # If there's a result (so, not -1), skip weekends
-            #if epoch != -1 and epoch.weekday() < 5:
-             #   output.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1, epoch])
+                filename = "{}/img-{}-{}".format(error_folder, video_file, cv2.CAP_PROP_POS_FRAMES - 1)
+                logger.error("Writing to: {}".format(filename))
+                cv2.imwrite(filename, frame_snip)
 
     # close video file
     cap.release()
-    return True # [filename, output]
+    return [video_file, timeframes]
 
 
 def flatten_timestamps(collection):
@@ -263,14 +263,19 @@ def main(folder_name):
     logger.info("Processing video folder: {}".format(folder_name))
 
     # Load the image containing the figures to recognize.
-    reference_numbers = load_reference_image('cijfers.png')
+    digits = load_reference_image('cijfers.png')
 
     # Load the list of video files to process
     raw_material = [avi_file for avi_file in glob.glob('{0}/*.AVI'.format(folder_name))]
 
+    # Create a place where to put not recognized time frames
+    error_folder = "{}/error".format(folder_name)
+    if not os.path.exists(error_folder):
+        os.makedirs(error_folder)
+
     # Recognize the timestamps in the video files
     with multiprocessing.Pool(processes=1) as pool:
-        partial_map = partial(analyze_video, reference_numbers=reference_numbers)
+        partial_map = partial(analyze_video, digits=digits, error_folder=error_folder)
         timestamps = pool.map(partial_map, raw_material)
 
     print(timestamps)
@@ -322,4 +327,4 @@ def main(folder_name):
 if __name__ == "__main__":
     # If we're started directly, call main() via a callable to measure performance
     t = timeit.Timer(lambda: main("C:/Users/pauls/Documents/GitHub/timelapse_ocr/video"))
-    logger.info("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
+    print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
