@@ -8,25 +8,35 @@
     Invoke ffmpeg to make an h264 encoded file
 """
 
-# Import modules
+# Import modules for image analysis
 from imutils import contours
 import imutils
 import numpy as np
 import cv2
 import datetime
+
+# For measuring and improving performance
 import timeit
-import glob
 import multiprocessing
+from functools import partial
+
+# File handling
+import glob
+import os
+
+# Processing data
 from itertools import repeat
 from mutagen.mp3 import MP3
+
+# For logging
 import logging
-import os
 
 
 # Start logger
-logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(funcName)s: %(message)s')
+# logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(funcName)s: %(message)s')
 # As global variable? Hmm... OK then...
-logger = logging.getLogger(__name__)
+logger = multiprocessing.get_logger()
+logger.setLevel(logging.DEBUG)
 
 
 def load_reference_image(name):
@@ -62,20 +72,12 @@ def load_reference_image(name):
     return digits
 
 
-def find_timestamp(frame, digits):
-    """
-    Detect digits in the frame by applying matchTemplate
-    Return the found date/time
-    """
-    logger.debug("Looking for timeframe...")
-
-
-
 def analyze_video(filename, reference_numbers):
     """
     Load specified video, detect time from each frame
     Return [filename, [frame_number, datetime]]
     """
+    digits = reference_numbers
     logger.info("{}: Analyzing {}...".format(
         multiprocessing.current_process().name, filename))
 
@@ -92,10 +94,10 @@ def analyze_video(filename, reference_numbers):
         if ret:
             # There's a frame decoded, find the timestamp within
             # Look only at the timestamp
-            frame = frame[703:720, 560:900]
+            frame_snip = frame[703:720, 560:900]
 
             # Convert frame to greyscale
-            grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            grey = cv2.cvtColor(frame_snip, cv2.COLOR_BGR2GRAY)
 
             # Find digits in the image by matchTemplate each digit
             found_numbers = []
@@ -131,12 +133,12 @@ def analyze_video(filename, reference_numbers):
                 return -1
 
             # If there's a result (so, not -1), skip weekends
-            if epoch != -1 and epoch.weekday() < 5:
-                output.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1, epoch])
+            #if epoch != -1 and epoch.weekday() < 5:
+             #   output.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1, epoch])
 
     # close video file
     cap.release()
-    return [filename, output]
+    return True # [filename, output]
 
 
 def flatten_timestamps(collection):
@@ -258,6 +260,7 @@ def invoke_ffmpeg(target_fps, frame_folder):
 
 def main(folder_name):
     logger.info("Starting main...")
+    logger.info("Processing video folder: {}".format(folder_name))
 
     # Load the image containing the figures to recognize.
     reference_numbers = load_reference_image('cijfers.png')
@@ -267,7 +270,12 @@ def main(folder_name):
 
     # Recognize the timestamps in the video files
     with multiprocessing.Pool(processes=1) as pool:
-        timestamps = pool.starmap(analyze_video, zip(raw_material, repeat(reference_numbers)))
+        partial_map = partial(analyze_video, reference_numbers=reference_numbers)
+        timestamps = pool.map(partial_map, raw_material)
+
+    print(timestamps)
+
+    exit()
 
     # check length of time lapse music file, calculate the needed frame rate
     audio_file = MP3('Housewife.mp3')   # TODO: input from argument
