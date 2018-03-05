@@ -36,6 +36,7 @@ import logging
 logging.basicConfig(format='%(levelname)s:%(funcName)s: %(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 
 def load_reference_image(name):
@@ -81,7 +82,7 @@ def analyze_video(video_file, digits, error_folder):
 
     # open video file
     cap = cv2.VideoCapture(video_file)
-    logger.info("{}: Amount of frames in {}: {}".format(
+    logger.debug("{}: Amount of frames in {}: {}".format(
         multiprocessing.current_process().name, video_file, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))))
 
     # Collect the found times here
@@ -132,13 +133,14 @@ def analyze_video(video_file, digits, error_folder):
 
             else:
                 logger.error("FAILURE IN RECOGNIZING FRAME!")
-                filename = "{}/img-{}-{}".format(error_folder, video_file, cv2.CAP_PROP_POS_FRAMES - 1)
+                filename = "{}/img-{}-{}.png".format(
+                    error_folder, os.path.basename(video_file), cv2.CAP_PROP_POS_FRAMES - 1)
                 logger.error("Writing to: {}".format(filename))
                 cv2.imwrite(filename, frame_snip)
 
     # close video file
     cap.release()
-    return [video_file, timeframes]
+    return [video_file, len(timeframes), timeframes]
 
 
 def flatten_timestamps(collection):
@@ -274,7 +276,7 @@ def main(folder_name):
         os.makedirs(error_folder)
 
     # Recognize the timestamps in the video files
-    with multiprocessing.Pool(processes=1) as pool:
+    with multiprocessing.Pool() as pool:
         partial_map = partial(analyze_video, digits=digits, error_folder=error_folder)
         timestamps = pool.map(partial_map, raw_material)
 
@@ -282,7 +284,7 @@ def main(folder_name):
 
     exit()
 
-    # check length of time lapse music file, calculate the needed frame rate
+    # check length of timelapse music file, calculate the needed frame rate
     audio_file = MP3('Housewife.mp3')   # TODO: input from argument
     logger.info("Length of audio file: {} sec".format(audio_file.info.length))
 
@@ -326,5 +328,6 @@ def main(folder_name):
 
 if __name__ == "__main__":
     # If we're started directly, call main() via a callable to measure performance
-    t = timeit.Timer(lambda: main("C:/Users/pauls/Documents/GitHub/timelapse_ocr/video"))
+    #t = timeit.Timer(lambda: main("C:/Users/pauls/Documents/GitHub/timelapse_ocr/video"))
+    t = timeit.Timer(lambda: main("E:/Datastore/TLCPRO/XL51/2017-12-05"))
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
