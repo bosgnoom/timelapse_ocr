@@ -35,7 +35,7 @@ import logging
 # Start logger
 # logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(funcName)s: %(message)s')
 # As global variable? Hmm... OK then...
-logger = multiprocessing.get_logger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
