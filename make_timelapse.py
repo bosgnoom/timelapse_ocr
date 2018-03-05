@@ -69,43 +69,6 @@ def find_timestamp(frame, digits):
     """
     logger.debug("Looking for timeframe...")
 
-    # Look only at the timestamp
-    frame = frame[703:720, 560:900]
-
-    # Convert frame to greyscale
-    grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-    # Find digits in the image by matchTemplate each digit
-    found_numbers = []
-    for number, digit in digits.items():
-        match_result = cv2.matchTemplate(grey, digit, cv2.TM_CCOEFF_NORMED)
-        threshold = 0.9
-        locations = np.where(match_result >= threshold)
-
-        for position in locations[1]:
-            found_numbers.append([position, number])
-
-    # Sort output from left to right, return only digits, not the position of the digit in the image
-    found_numbers.sort()
-    output = [digit[1] for digit in found_numbers]
-
-    if len(output) == 14:
-        # Calculate year, month... into a date
-        year = 1000 * output[0] + 100 * output[1] + 10 * output[2] + output[3]
-        month = 10 * output[4] + output[5]
-        day = 10 * output[6] + output[7]
-        hour = 10 * output[8] + output[9]
-        minute = 10 * output[10] + output[11]
-        second = 10 * output[12] + output[13]
-        datum = datetime.datetime(year, month, day, hour, minute, second)
-
-        logger.debug("Found time: {}".format(datum))
-        return datum
-
-    else:
-        logger.error("Output: {}".format(output))
-        logger.error("FAILURE IN RECOGNIZING FRAME!")
-        return -1
 
 
 def analyze_video(filename, reference_numbers):
@@ -128,7 +91,45 @@ def analyze_video(filename, reference_numbers):
         ret, frame = cap.read()
         if ret:
             # There's a frame decoded, find the timestamp within
-            epoch = find_timestamp(frame, reference_numbers)
+            # Look only at the timestamp
+            frame = frame[703:720, 560:900]
+
+            # Convert frame to greyscale
+            grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            # Find digits in the image by matchTemplate each digit
+            found_numbers = []
+            for number, digit in digits.items():
+                match_result = cv2.matchTemplate(grey, digit, cv2.TM_CCOEFF_NORMED)
+                threshold = 0.9
+                locations = np.where(match_result >= threshold)
+
+                for position in locations[1]:
+                    found_numbers.append([position, number])
+
+            # Sort output from left to right, return only digits, not the position of the digit in the image
+            found_numbers.sort()
+            output = [digit[1] for digit in found_numbers]
+
+            if len(output) == 14:
+                # Calculate year, month... into a date
+                year = 1000 * output[0] + 100 * output[1] + 10 * output[2] + output[3]
+                month = 10 * output[4] + output[5]
+                day = 10 * output[6] + output[7]
+                hour = 10 * output[8] + output[9]
+                minute = 10 * output[10] + output[11]
+                second = 10 * output[12] + output[13]
+                datum = datetime.datetime(year, month, day, hour, minute, second)
+
+                logger.debug("Found time: {}".format(datum))
+                return datum
+
+            else:
+                logger.error("Output: {}".format(output))
+                logger.error("FAILURE IN RECOGNIZING FRAME!")
+
+                return -1
+
             # If there's a result (so, not -1), skip weekends
             if epoch != -1 and epoch.weekday() < 5:
                 output.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1, epoch])
