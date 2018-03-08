@@ -33,11 +33,14 @@ import logging
 
 
 # Start logger
-logging.basicConfig(format='%(levelname)s:%(funcName)s: %(message)s')
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# logging.basicConfig(format='%(levelname)s:%(funcName)s: %(message)s')
+# logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.INFO)
+# Just testing different logger methods...
+multiprocessing.log_to_stderr()
+logger = multiprocessing.get_logger()
 logger.setLevel(logging.INFO)
-
 
 def load_reference_image(name):
     """
