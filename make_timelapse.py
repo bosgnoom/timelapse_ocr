@@ -282,8 +282,7 @@ def main(folder_name):
 
     print(timestamps)
 
-    exit()
-
+"""
     # check length of timelapse music file, calculate the needed frame rate
     audio_file = MP3('Housewife.mp3')   # TODO: input from argument
     logger.info("Length of audio file: {} sec".format(audio_file.info.length))
@@ -303,12 +302,14 @@ def main(folder_name):
     else:
         # There are more frames than needed, reduce the amount of frames
         timestamps = select_timestamps(all_timestamps, timestamps)
+"""
 
-    # Process video files, calculate averaged frame and write them to disk
+    # If needed create a folder for the processed image files
     frame_folder = "{}/img".format(folder_name)
     logger.debug("Frame folder: {}".format(frame_folder))
 
     if not os.path.exists(frame_folder):
+        logger.debug("Image folder not existing, creating...")
         os.makedirs(frame_folder)
     # Empty the img folder
     for filename in glob.glob("{}/*.png".format(frame_folder)):
