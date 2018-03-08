@@ -41,6 +41,7 @@ import logging
 multiprocessing.log_to_stderr()
 logger = multiprocessing.get_logger()
 logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 def load_reference_image(name):
     """
@@ -161,7 +162,7 @@ def process_frame(frame, destination_folder):
     """
     Access each video file a second time: get specified frames, calculate averaged frame
     and write image to img folder
-    :param frame: [video_file, [[frame number, timestamp], [...]]
+    :param frame: [video_file, number_of_frames, [[frame number, timestamp], [...]]
     :param destination_folder: folder where to write to
     :return: True for now... TODO: add return value to check for processing
     """
@@ -169,9 +170,9 @@ def process_frame(frame, destination_folder):
 
     cap = cv2.VideoCapture(frame[0])
     if cap.isOpened():
-        for image in frame[1]:
+        for image in frame[2]:
             if (image[0] >= 1) and (image[0] < cap.get(cv2.CAP_PROP_FRAME_COUNT) - 1):
-                logger.debug('Decoding frame: {}'.format(image[0]))
+                logger.debug('Decoding frame number: {}'.format(image[0]))
                 cap.set(cv2.CAP_PROP_POS_FRAMES, image[0] - 1)
                 ret1, frame1 = cap.read()
                 ret2, frame2 = cap.read()
@@ -285,7 +286,7 @@ def main(folder_name):
 
     print(timestamps)
 
-"""
+    """
     # check length of timelapse music file, calculate the needed frame rate
     audio_file = MP3('Housewife.mp3')   # TODO: input from argument
     logger.info("Length of audio file: {} sec".format(audio_file.info.length))
@@ -305,7 +306,7 @@ def main(folder_name):
     else:
         # There are more frames than needed, reduce the amount of frames
         timestamps = select_timestamps(all_timestamps, timestamps)
-"""
+    """
 
     # If needed create a folder for the processed image files
     frame_folder = "{}/img".format(folder_name)
@@ -321,11 +322,14 @@ def main(folder_name):
 
     # Process the selected frames
     with multiprocessing.Pool(processes=1) as pool:
-        result = pool.starmap(process_frame, zip(timestamps, repeat(frame_folder)))
+        # result = pool.starmap(process_frame, zip(timestamps, repeat(frame_folder)))
+        partial_map = partial(process_frame, destination_folder=frame_folder)
+        result = pool.map(partial_map, timestamps)
+
         # TODO: check result
 
     # Invoke ffmpeg
-    invoke_ffmpeg(target_fps, frame_folder)
+    # invoke_ffmpeg(target_fps, frame_folder)
 
     logger.info('All done...')
 
