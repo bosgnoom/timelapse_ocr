@@ -38,8 +38,8 @@ import logging
 # logger.setLevel(logging.DEBUG)
 # logger.setLevel(logging.INFO)
 # Just testing different logger methods...
-multiprocessing.log_to_stderr()
-logger = multiprocessing.get_logger()
+logger = multiprocessing.log_to_stderr()
+#logger = multiprocessing.get_logger(__name__)
 logger.setLevel(logging.INFO)
 logger.setLevel(logging.DEBUG)
 
@@ -223,7 +223,7 @@ def select_timestamps(all_timestamps, timestamps):
     return selected_timestamps
 
 
-def invoke_ffmpeg(target_fps, frame_folder):
+def invoke_ffmpeg(target_fps, frame_folder, destiny_folder):
     """
         Prepare ffmpeg command and execute
         target_fps is the number of frames per second for the movie
@@ -256,7 +256,7 @@ def invoke_ffmpeg(target_fps, frame_folder):
     command.append('-shortest')
 
     # Filename
-    command.append('test.mp4')
+    command.append('{}/test.mp4'.format(destiny_folder))
 
     command = ' '.join(command)
 
@@ -284,9 +284,6 @@ def main(folder_name):
         partial_map = partial(analyze_video, digits=digits, error_folder=error_folder)
         timestamps = pool.map(partial_map, raw_material)
 
-    print(timestamps)
-
-    """
     # check length of timelapse music file, calculate the needed frame rate
     audio_file = MP3('Housewife.mp3')   # TODO: input from argument
     logger.info("Length of audio file: {} sec".format(audio_file.info.length))
@@ -295,22 +292,26 @@ def main(folder_name):
     target_fps = 30     # TODO: 30 (fps) from argument (or rather maximum frame rate)
     amount_of_frames_needed = target_fps * audio_file.info.length
 
-    # Calculate the target_fps
+    # Calculate amount of frames available
+    amount_of_frames_available = sum([i[1] for i in timestamps])
+
+    # Calculate the target frames per second
     # Either reduce the amount of frames needed, or lower the frame rate
-    all_timestamps = flatten_timestamps(timestamps)
-    if amount_of_frames_needed > len(all_timestamps):
+    if amount_of_frames_needed > amount_of_frames_available:
         # We need more frames than available, so calculate reduced frame rate to fill video
         logger.info("Amount of frames too low. Calculating new frame rate...")
-        target_fps = int(len(all_timestamps) / audio_file.info.length + 0.5)
+        target_fps = int(amount_of_frames_available / audio_file.info.length + 0.5)
         logger.info('Calculated frame rate: {:0.3f}'.format(target_fps))
     else:
         # There are more frames than needed, reduce the amount of frames
-        timestamps = select_timestamps(all_timestamps, timestamps)
-    """
+        # TODO: rework select_timestamps
+        # timestamps = select_timestamps(all_timestamps, timestamps)
+        pass
 
+    exit()
     # If needed create a folder for the processed image files
-    frame_folder = "{}/img".format(folder_name)
-    logger.debug("Frame folder: {}".format(frame_folder))
+    frame_folder = "e:/video_tmp".format(folder_name)
+    logger.info("Frame folder: {}".format(frame_folder))
 
     if not os.path.exists(frame_folder):
         logger.debug("Image folder not existing, creating...")
@@ -321,7 +322,7 @@ def main(folder_name):
         os.remove(filename)
 
     # Process the selected frames
-    with multiprocessing.Pool(processes=1) as pool:
+    with multiprocessing.Pool() as pool:
         # result = pool.starmap(process_frame, zip(timestamps, repeat(frame_folder)))
         partial_map = partial(process_frame, destination_folder=frame_folder)
         result = pool.map(partial_map, timestamps)
@@ -329,13 +330,13 @@ def main(folder_name):
         # TODO: check result
 
     # Invoke ffmpeg
-    # invoke_ffmpeg(target_fps, frame_folder)
+    invoke_ffmpeg(target_fps, frame_folder, folder_name)
 
     logger.info('All done...')
 
 
 if __name__ == "__main__":
     # If we're started directly, call main() via a callable to measure performance
-    #t = timeit.Timer(lambda: main("C:/Users/pauls/Documents/GitHub/timelapse_ocr/video"))
-    t = timeit.Timer(lambda: main("E:/Datastore/TLCPRO/XL51/2017-12-05"))
+    t = timeit.Timer(lambda: main("C:/Users/pauls/Documents/GitHub/timelapse_ocr/video"))
+    #t = timeit.Timer(lambda: main("E:/Datastore/TLCPRO/XL51/2017-12-05"))
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
