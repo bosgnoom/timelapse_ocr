@@ -191,26 +191,44 @@ def process_frame(frame, destination_folder):
     return True
 
 
-def select_timestamps(all_timestamps, timestamps):
+def select_timestamps(amount_of_frames_needed, timestamps):
     """
     Take the list of timeframes, select which ones to use
-    :param all_timestamps: list of all timestamps found
+    - The amount of frames needed is e.g. 300 sec * 30 fps = 9000
+    - From the timestamps it is determined that there are 30 days available
+    - So, there are 9000 / 30 = 300 frames per day needed
+    - Each frame is 5 minutes apart (from raw footage), so
+    - Start time = 12:00 - (300/2) * 5 minutes
+    - Stop time = 12:00 + (300/2) * 5 minutes
+
     :param timestamps: original list
+    :param amount_of_frames_needed: the amount of frames needed
     :return: list of selected timeframes
     """
-    logger.info("Enough frames, checking which ones are needed...")
-    days = [day.strftime("%Y%m%d") for day in all_timestamps]
+    logger.info("Enough frames are available, checking which ones are needed...")
+
+    # Loop over all timestamps, add the days to a list
+    # Could be replaced by a double list comprehension, but I am not able to produce this on my own
+    days = []
+    for video_file in timestamps:
+        for time_frame in video_file[2]:
+            days.append(time_frame[1].strftime("%Y%m%d"))
+
     # By converting into a set only unique values remain
     amount_of_days = len(set(days))
-    total_frames_per_day = len(all_timestamps) / amount_of_days
+    total_frames_per_day = amount_of_frames_needed / amount_of_days
 
     logger.info("Amount of days in videos found: {}".format(amount_of_days))
     logger.info("Reducing to {:1.1f} frames per day...".format(total_frames_per_day))
 
+    # Calculate start and stop time
     start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
     stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
 
     logger.info("Selecting frames from {} to {}".format(start_time, stop_time))
+
+    # Make a new list of timestamps
+    # [ video_file, number_of_frames, [[frame nr, timestamp], [nr, time], [...]]]
     selected_timestamps = []
     for video_file in timestamps:
         times = []
@@ -289,7 +307,7 @@ def main(folder_name):
         timestamps = pool.map(partial_map, raw_material)
 
     # check length of timelapse music file, calculate the needed frame rate
-    audio_file = MP3('Housewife.mp3')   # TODO: input from argument
+    audio_file = MP3('Song 2.mp3')   # TODO: input from argument
     logger.info("Length of audio file: {} sec".format(audio_file.info.length))
 
     # Calculate the total amount of frames needed
@@ -309,8 +327,13 @@ def main(folder_name):
     else:
         # There are more frames than needed, reduce the amount of frames
         # TODO: rework select_timestamps
-        # timestamps = select_timestamps(all_timestamps, timestamps)
+
+        #timestamps = select_timestamps(amount_of_frames_needed, timestamps)
         pass
+
+    timestamps = select_timestamps(amount_of_frames_needed, timestamps)
+
+    exit()
 
     # If needed create a folder for the processed image files
     frame_folder = "e:/video_tmp".format(folder_name)
