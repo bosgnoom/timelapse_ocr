@@ -33,15 +33,19 @@ import logging
 
 
 # Start logger
-# logging.basicConfig(format='%(levelname)s:%(funcName)s: %(message)s')
-# logger = logging.getLogger(__name__)
-# logger.setLevel(logging.DEBUG)
-# logger.setLevel(logging.INFO)
-# Just testing different logger methods...
-logger = multiprocessing.log_to_stderr()
+# Testing different logger methods:
+# "Standard" logger:
+logging.basicConfig(format='%(levelname)s:%(funcName)s: %(message)s')
+logger = logging.getLogger(__name__)
+
+# Multiprocessing logger: (seems to cause double output)
+#logger = multiprocessing.log_to_stderr()
 #logger = multiprocessing.get_logger(__name__)
+
+# Set loglevel
+# TODO: get logging level from argparse
 logger.setLevel(logging.INFO)
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
 
 def load_reference_image(name):
     """
@@ -308,7 +312,6 @@ def main(folder_name):
         # timestamps = select_timestamps(all_timestamps, timestamps)
         pass
 
-    exit()
     # If needed create a folder for the processed image files
     frame_folder = "e:/video_tmp".format(folder_name)
     logger.info("Frame folder: {}".format(frame_folder))
@@ -337,6 +340,6 @@ def main(folder_name):
 
 if __name__ == "__main__":
     # If we're started directly, call main() via a callable to measure performance
-    t = timeit.Timer(lambda: main("C:/Users/pauls/Documents/GitHub/timelapse_ocr/video"))
-    #t = timeit.Timer(lambda: main("E:/Datastore/TLCPRO/XL51/2017-12-05"))
+    # t = timeit.Timer(lambda: main("C:/Users/pauls/Documents/GitHub/timelapse_ocr/video"))
+    t = timeit.Timer(lambda: main("E:/Datastore/TLCPRO/XL51/2017-12-05"))
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
