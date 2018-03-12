@@ -246,7 +246,7 @@ def select_timestamps(amount_of_frames_needed, timestamps):
     return selected_timestamps
 
 
-def invoke_ffmpeg(target_fps, frame_folder, destiny_folder):
+def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_folder):
     """
         Prepare ffmpeg command and execute
         target_fps is the number of frames per second for the movie
@@ -267,7 +267,7 @@ def invoke_ffmpeg(target_fps, frame_folder, destiny_folder):
     command.append("-y -r {} -i {}/img0%4d.png".format(target_fps, frame_folder))
 
     # Add soundtrack
-    command.append('-i {}'.format('housewife.mp3'))
+    command.append('-i {}'.format(music_file))
 
     # Set video codec
     command.append('-vcodec libx264 -profile:v high -preset slow')
@@ -287,7 +287,7 @@ def invoke_ffmpeg(target_fps, frame_folder, destiny_folder):
     logger.debug(result)
 
 
-def main(folder_name):
+def main(folder_name, music_file):
     logger.info("Starting main...")
     logger.info("Processing video folder: {}".format(folder_name))
 
@@ -295,7 +295,7 @@ def main(folder_name):
     digits = load_reference_image('cijfers.png')
 
     # Load the list of video files to process
-    raw_material = [avi_file for avi_file in glob.glob('{0}/*.AVI'.format(folder_name))]
+    raw_material = [avi_file for avi_file in glob.glob('{0}/*/*.AVI'.format(folder_name))]
 
     # Create a place where to put not recognized time frames
     error_folder = "{}/error".format(folder_name)
@@ -308,7 +308,7 @@ def main(folder_name):
         timestamps = pool.map(partial_map, raw_material)
 
     # check length of timelapse music file, calculate the needed frame rate
-    audio_file = MP3('Song 2.mp3')   # TODO: input from argument
+    audio_file = MP3(music_file)   # TODO: input from argument
     logger.info("Length of audio file: {} sec".format(audio_file.info.length))
 
     # Calculate the total amount of frames needed
@@ -350,7 +350,7 @@ def main(folder_name):
         # TODO: check result
 
     # Invoke ffmpeg
-    invoke_ffmpeg(target_fps, frame_folder, folder_name)
+    invoke_ffmpeg(target_fps, music_file, frame_folder, folder_name)
 
     logger.info('All done...')
 
@@ -358,5 +358,5 @@ def main(folder_name):
 if __name__ == "__main__":
     # If we're started directly, call main() via a callable to measure performance
     # t = timeit.Timer(lambda: main("C:/Users/pauls/Documents/GitHub/timelapse_ocr/video"))
-    t = timeit.Timer(lambda: main("E:/Datastore/TLCPRO/XL51/2017-12-05"))
+    t = timeit.Timer(lambda: main("E:/Datastore/TLCPRO/XL51", "Song_2.mp3"))
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
