@@ -246,7 +246,7 @@ def select_timestamps(amount_of_frames_needed, timestamps):
     return selected_timestamps
 
 
-def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_folder):
+def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file):
     """
         Prepare ffmpeg command and execute
         target_fps is the number of frames per second for the movie
@@ -279,7 +279,7 @@ def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_folder):
     command.append('-shortest')
 
     # Filename
-    command.append('{}/test.mp4'.format(destiny_folder))
+    command.append('{}'.format(destiny_file))
 
     command = ' '.join(command)
 
@@ -287,7 +287,7 @@ def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_folder):
     logger.debug(result)
 
 
-def main(folder_name, music_file):
+def main(folder_name, destiny_file, music_file):
     logger.info("Starting main...")
     logger.info("Processing video folder: {}".format(folder_name))
 
@@ -350,7 +350,7 @@ def main(folder_name, music_file):
         # TODO: check result
 
     # Invoke ffmpeg
-    invoke_ffmpeg(target_fps, music_file, frame_folder, folder_name)
+    invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file)
 
     logger.info('All done...')
 
@@ -358,5 +358,15 @@ def main(folder_name, music_file):
 if __name__ == "__main__":
     # If we're started directly, call main() via a callable to measure performance
     # t = timeit.Timer(lambda: main("C:/Users/pauls/Documents/GitHub/timelapse_ocr/video"))
-    t = timeit.Timer(lambda: main("E:/Datastore/TLCPRO/XL51", "Song_2.mp3"))
+    t = timeit.Timer(lambda: main(
+        "E:/Datastore/TLCPRO/XL51", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-XL51.mp4", "Song_2.mp3"))
+    # t = timeit.Timer(lambda: main(
+    #    "E:/Datastore/TLCPRO/Grinder", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-Grinder.mp4", "Gemist.mp3"))
+    t = timeit.Timer(lambda: main(
+        "E:/Datastore/TLCPRO/FO52", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-FO52.mp4", "Pong.mp3"))
+    t = timeit.Timer(lambda: main(
+        "E:/Datastore/TLCPRO/Hal_2", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-Hal_2.mp4", "Ghost.mp3"))
+    t = timeit.Timer(lambda: main(
+        "E:/Datastore/TLCPRO/Hal_7b", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-Hal_7b.mp4", "Tainted_Love.mp3"))
+
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
