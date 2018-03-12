@@ -38,7 +38,7 @@ import logging
 logging.basicConfig(format='%(levelname)s:%(funcName)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-# Multiprocessing logger: (seems to cause double output)
+# Multiprocessing logger: (seems to cause double output, at least using PyCharm)
 #logger = multiprocessing.log_to_stderr()
 #logger = multiprocessing.get_logger(__name__)
 
@@ -193,16 +193,17 @@ def process_frame(frame, destination_folder):
 
 def select_timestamps(amount_of_frames_needed, timestamps):
     """
-    Take the list of timeframes, select which ones to use
+    Use the list of timeframes, select which ones to use
     - The amount of frames needed is e.g. 300 sec * 30 fps = 9000
-    - From the timestamps it is determined that there are 30 days available
+    - From the list of timestamps it is determined that there are (e.g.) 30 days available
     - So, there are 9000 / 30 = 300 frames per day needed
     - Each frame is 5 minutes apart (from raw footage), so
     - Start time = 12:00 - (300/2) * 5 minutes
     - Stop time = 12:00 + (300/2) * 5 minutes
-
+    
+    :param amount_of_frames_needed: the amount of frames needed
     :param timestamps: original list
-    :param amount_of_frames_needed: the amount of frames needed
+
     :return: list of selected timeframes
     """
     logger.info("Enough frames are available, checking which ones are needed...")
@@ -232,7 +233,7 @@ def select_timestamps(amount_of_frames_needed, timestamps):
     selected_timestamps = []
     for video_file in timestamps:
         times = []
-        for frames in video_file[1]:
+        for frames in video_file[2]:
             time_frame = frames[1]
             time_to_match = datetime.timedelta(
                 hours=time_frame.hour,
@@ -240,7 +241,7 @@ def select_timestamps(amount_of_frames_needed, timestamps):
                 seconds=time_frame.second)
             if start_time < time_to_match < stop_time:
                 times.append(frames)
-        selected_timestamps.append([video_file[0], times])
+        selected_timestamps.append([video_file[0], len(times), times])
 
     return selected_timestamps
 
