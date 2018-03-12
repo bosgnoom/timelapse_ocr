@@ -25,7 +25,7 @@ import glob
 import os
 
 # Processing data
-from itertools import repeat
+# from itertools import repeat
 from mutagen.mp3 import MP3
 
 # For logging
