@@ -257,7 +257,7 @@ def invoke_ffmpeg(target_fps, frame_folder, destiny_folder):
     file_list.sort()
 
     for i, file_name in enumerate(file_list):
-        print("{}-{}".format(i, file_name))
+        logger.debug("{}-{}".format(i, file_name))
         os.rename(frame_folder + '/' + file_name, frame_folder + '/img{:05d}.png'.format(i))
 
     command = []
@@ -327,14 +327,7 @@ def main(folder_name):
         logger.info('Calculated frame rate: {:0.3f}'.format(target_fps))
     else:
         # There are more frames than needed, reduce the amount of frames
-        # TODO: rework select_timestamps
-
-        #timestamps = select_timestamps(amount_of_frames_needed, timestamps)
-        pass
-
-    timestamps = select_timestamps(amount_of_frames_needed, timestamps)
-
-    exit()
+        timestamps = select_timestamps(amount_of_frames_needed, timestamps)
 
     # If needed create a folder for the processed image files
     frame_folder = "e:/video_tmp".format(folder_name)
