@@ -168,23 +168,27 @@ def process_frame(frame, destination_folder):
     and write image to img folder
     :param frame: [video_file, number_of_frames, [[frame number, timestamp], [...]]
     :param destination_folder: folder where to write to
-    :return: True for now... TODO: add return value to check for processing
+    :return: true if all frames are written to disk
     """
     logger.info('{}: Processing images from: {}'.format(multiprocessing.current_process().name, frame[0]))
 
     cap = cv2.VideoCapture(frame[0])
 
+    logger.debug("Loading video file...")
     cache = []
     ret = cap.isOpened()
     while ret:
         ret, image = cap.read()
-        cache.append(image)
+        if ret:
+            cache.append(image)
+
     cap.release()
 
+    return_value = True
     for image in frame[2]:
-        if (image[0] >= 1) and (image[0] < cap.get(cv2.CAP_PROP_FRAME_COUNT) - 1):
-            logger.debug('Decoding frame number: {}'.format(image[0]))
-            # cap.set(cv2.CAP_PROP_POS_FRAMES, image[0] - 1)
+        if (image[0] >= 1) and (image[0] < (len(cache) - 1)):
+            logger.debug('Decoding frame number: {}/{}'.format(image[0], len(cache)))
+
             frame1 = cache[image[0] - 1]
             frame2 = cache[image[0]]
             frame3 = cache[image[0] + 1]
@@ -194,9 +198,9 @@ def process_frame(frame, destination_folder):
 
             file_name = "{}/img{}.png".format(destination_folder, image[1].strftime('%Y%m%d%H%M'))
             logger.debug("Writing to: {}".format(file_name))
-            cv2.imwrite(file_name, frame_result)
+            return_value = return_value and cv2.imwrite(file_name, frame_result)
 
-    return True
+    return return_value
 
 
 def select_timestamps(amount_of_frames_needed, timestamps):
@@ -337,6 +341,11 @@ def main(folder_name, destiny_file, music_file):
         # There are more frames than needed, reduce the amount of frames
         timestamps = select_timestamps(amount_of_frames_needed, timestamps)
 
+    amount_of_frames_available = sum([i[1] for i in timestamps])
+    logger.info("Calculating new frame rate...")
+    target_fps = int(100*amount_of_frames_available / audio_file.info.length) / 100
+    logger.info('Calculated frame rate: {:0.3f}'.format(target_fps))
+
     # If needed create a folder for the processed image files
     frame_folder = "e:/video_tmp".format(folder_name)
     logger.info("Frame folder: {}".format(frame_folder))
@@ -350,11 +359,9 @@ def main(folder_name, destiny_file, music_file):
         os.remove(filename)
 
     # Process the selected frames
-    with multiprocessing.Pool() as pool:
-        # result = pool.starmap(process_frame, zip(timestamps, repeat(frame_folder)))
+    with multiprocessing.Pool(processes=1) as pool:
         partial_map = partial(process_frame, destination_folder=frame_folder)
         result = pool.map(partial_map, timestamps)
-
         # TODO: check result
 
     # Invoke ffmpeg
