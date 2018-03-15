@@ -24,8 +24,7 @@ from functools import partial
 import glob
 import os
 
-# Processing data
-# from itertools import repeat
+# Audio processing
 from mutagen.mp3 import MP3
 
 # For logging
@@ -151,44 +150,45 @@ def analyze_video(video_file, digits, error_folder):
     return [video_file, len(timeframes), timeframes]
 
 
-def flatten_timestamps(collection):
-    """
-    Flatten the collection of video files and timestamps to a list of timestamps
-    :param collection: timestamps
-    :return: number of datetimes found
-    """
-    # Double list comprehension... Still trying to comprehense
-    times = [frame[1] for video_file in collection for frame in video_file[1]]
-    return times
-
-
 def process_frame(frame, destination_folder):
     """
     Access each video file a second time: get specified frames, calculate averaged frame
     and write image to img folder
     :param frame: [video_file, number_of_frames, [[frame number, timestamp], [...]]
     :param destination_folder: folder where to write to
-    :return: True for now... TODO: add return value to check for processing
+    :return: true if all frames are written to disk
     """
     logger.info('{}: Processing images from: {}'.format(multiprocessing.current_process().name, frame[0]))
 
     cap = cv2.VideoCapture(frame[0])
-    if cap.isOpened():
-        for image in frame[2]:
-            if (image[0] >= 1) and (image[0] < cap.get(cv2.CAP_PROP_FRAME_COUNT) - 1):
-                logger.debug('Decoding frame number: {}'.format(image[0]))
-                cap.set(cv2.CAP_PROP_POS_FRAMES, image[0] - 1)
-                ret1, frame1 = cap.read()
-                ret2, frame2 = cap.read()
-                ret3, frame3 = cap.read()
-                frame_result = cv2.addWeighted(frame1, 0.333, frame2, 0.666, 0)
-                frame_result = cv2.addWeighted(frame_result, 0.75, frame3, 0.25, 0)
-                file_name = "{}/img{}.png".format(destination_folder, image[1].strftime('%Y%m%d%H%M'))
-                logger.debug("Writing to: {}".format(file_name))
-                cv2.imwrite(file_name, frame_result)
+
+    logger.debug("Loading video file...")
+    cache = []
+    ret = cap.isOpened()
+    while ret:
+        ret, image = cap.read()
+        if ret:
+            cache.append(image)
 
     cap.release()
-    return True
+
+    return_value = True
+    for image in frame[2]:
+        if (image[0] >= 1) and (image[0] < (len(cache) - 1)):
+            logger.debug('Decoding frame number: {}/{}'.format(image[0], len(cache)))
+
+            frame1 = cache[image[0] - 1]
+            frame2 = cache[image[0]]
+            frame3 = cache[image[0] + 1]
+
+            frame_result = cv2.addWeighted(frame1, 0.333, frame2, 0.666, 0)
+            frame_result = cv2.addWeighted(frame_result, 0.75, frame3, 0.25, 0)
+
+            file_name = "{}/img{}.png".format(destination_folder, image[1].strftime('%Y%m%d%H%M'))
+            logger.debug("Writing to: {}".format(file_name))
+            return_value = return_value and cv2.imwrite(file_name, frame_result)
+
+    return return_value
 
 
 def select_timestamps(amount_of_frames_needed, timestamps):
@@ -276,7 +276,7 @@ def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file):
     command.append('-strict -2 -acodec aac -b:a 128k')
 
     # Cut video/audio stream by the shortest one
-    command.append('-shortest')
+    # command.append('-shortest')
 
     # Filename
     command.append('{}'.format(destiny_file))
