@@ -173,21 +173,29 @@ def process_frame(frame, destination_folder):
     logger.info('{}: Processing images from: {}'.format(multiprocessing.current_process().name, frame[0]))
 
     cap = cv2.VideoCapture(frame[0])
-    if cap.isOpened():
-        for image in frame[2]:
-            if (image[0] >= 1) and (image[0] < cap.get(cv2.CAP_PROP_FRAME_COUNT) - 1):
-                logger.debug('Decoding frame number: {}'.format(image[0]))
-                cap.set(cv2.CAP_PROP_POS_FRAMES, image[0] - 1)
-                ret1, frame1 = cap.read()
-                ret2, frame2 = cap.read()
-                ret3, frame3 = cap.read()
-                frame_result = cv2.addWeighted(frame1, 0.333, frame2, 0.666, 0)
-                frame_result = cv2.addWeighted(frame_result, 0.75, frame3, 0.25, 0)
-                file_name = "{}/img{}.png".format(destination_folder, image[1].strftime('%Y%m%d%H%M'))
-                logger.debug("Writing to: {}".format(file_name))
-                cv2.imwrite(file_name, frame_result)
 
+    cache = []
+    ret = cap.isOpened()
+    while ret:
+        ret, image = cap.read()
+        cache.append(image)
     cap.release()
+
+    for image in frame[2]:
+        if (image[0] >= 1) and (image[0] < cap.get(cv2.CAP_PROP_FRAME_COUNT) - 1):
+            logger.debug('Decoding frame number: {}'.format(image[0]))
+            # cap.set(cv2.CAP_PROP_POS_FRAMES, image[0] - 1)
+            frame1 = cache[image[0] - 1]
+            frame2 = cache[image[0]]
+            frame3 = cache[image[0] + 1]
+
+            frame_result = cv2.addWeighted(frame1, 0.333, frame2, 0.666, 0)
+            frame_result = cv2.addWeighted(frame_result, 0.75, frame3, 0.25, 0)
+
+            file_name = "{}/img{}.png".format(destination_folder, image[1].strftime('%Y%m%d%H%M'))
+            logger.debug("Writing to: {}".format(file_name))
+            cv2.imwrite(file_name, frame_result)
+
     return True
 
 
@@ -358,22 +366,29 @@ def main(folder_name, destiny_file, music_file):
 if __name__ == "__main__":
     # If we're started directly, call main() via a callable to measure performance
     # t = timeit.Timer(lambda: main("C:/Users/pauls/Documents/GitHub/timelapse_ocr/video"))
+
     t = timeit.Timer(lambda: main(
-        "E:/Datastore/TLCPRO/XL51", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-XL51.mp4", "Pong.mp3"))
+        "C:/Users/pauls/Documents/GitHub/timelapse_ocr/video",
+        "C:/Users/pauls/Documents/GitHub/timelapse_ocr/test.mp4",
+        "Song_2.mp3"))
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
 
-    # t = timeit.Timer(lambda: main(
+    #t = timeit.Timer(lambda: main(
+    #    "E:/Datastore/TLCPRO/XL51", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-XL51.mp4", "Pong.mp3"))
+    #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
+
+    #t = timeit.Timer(lambda: main(
     #    "E:/Datastore/TLCPRO/Grinder", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-Grinder.mp4", "Gemist.mp3"))
-    # print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
+    #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
 
-    t = timeit.Timer(lambda: main(
-        "E:/Datastore/TLCPRO/FO52", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-FO52.mp4", "Song_2.mp3"))
-    print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
+    #t = timeit.Timer(lambda: main(
+    #    "E:/Datastore/TLCPRO/FO52", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-FO52.mp4", "Song_2.mp3"))
+    #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
 
-    t = timeit.Timer(lambda: main(
-        "E:/Datastore/TLCPRO/Hal_2", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-Hal_2.mp4", "Ghost.mp3"))
-    print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
+    #t = timeit.Timer(lambda: main(
+    #    "E:/Datastore/TLCPRO/Hal_2", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-Hal_2.mp4", "Ghost.mp3"))
+    #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
 
-    t = timeit.Timer(lambda: main(
-        "E:/Datastore/TLCPRO/Hal_7b", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-Hal_7b.mp4", "Tainted_Love.mp3"))
-    print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
+    #t = timeit.Timer(lambda: main(
+    #    "E:/Datastore/TLCPRO/Hal_7b", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-Hal_7b.mp4", "Tainted_Love.mp3"))
+    #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
