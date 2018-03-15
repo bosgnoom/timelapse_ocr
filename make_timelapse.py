@@ -287,7 +287,7 @@ def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file):
     logger.debug(result)
 
 
-def main(folder_name, destiny_file, music_file):
+def main(folder_name, destiny_file, music_file, target_fps=30):
     logger.info("Starting main...")
     logger.info("Processing video folder: {}".format(folder_name))
 
@@ -297,7 +297,7 @@ def main(folder_name, destiny_file, music_file):
     # Load the list of video files to process
     raw_material = [avi_file for avi_file in glob.glob('{0}/*/*.AVI'.format(folder_name))]
 
-    # Create a place where to put not recognized time frames
+    # Create a place where to put not recognized/error time frames
     error_folder = "{}/error".format(folder_name)
     if not os.path.exists(error_folder):
         os.makedirs(error_folder)
@@ -307,30 +307,28 @@ def main(folder_name, destiny_file, music_file):
         partial_map = partial(analyze_video, digits=digits, error_folder=error_folder)
         timestamps = pool.map(partial_map, raw_material)
 
-    # check length of timelapse music file, calculate the needed frame rate
-    audio_file = MP3(music_file)   # TODO: input from argument
+    # Determine the length of music file
+    audio_file = MP3(music_file)
     logger.info("Length of audio file: {} sec".format(audio_file.info.length))
 
     # Calculate the total amount of frames needed
-    target_fps = 30     # TODO: 30 (fps) from argument (or rather maximum frame rate)
     amount_of_frames_needed = target_fps * audio_file.info.length
 
     # Calculate amount of frames available
     amount_of_frames_available = sum([i[1] for i in timestamps])
 
-    # Calculate the target frames per second
-    # Either reduce the amount of frames needed, or lower the frame rate
-    if amount_of_frames_needed > amount_of_frames_available:
-        # We need more frames than available, so calculate reduced frame rate to fill video
-        logger.info("Amount of frames too low. Calculating new frame rate...")
-        target_fps = int(amount_of_frames_available / audio_file.info.length + 0.5)
-        logger.info('Calculated frame rate: {:0.3f}'.format(target_fps))
-    else:
+    # Reduce the amount of frames if needed
+    if amount_of_frames_available > amount_of_frames_needed:
         # There are more frames than needed, reduce the amount of frames
         timestamps = select_timestamps(amount_of_frames_needed, timestamps)
 
+    # Check again how much frames are available, better safe than sorry...
+    amount_of_frames_available = sum([i[1] for i in timestamps])
+    target_fps = int(100 * amount_of_frames_available / audio_file.info.length) / 100
+    logger.info('Calculated frame rate: {:0.2f}'.format(target_fps))
+
     # If needed create a folder for the processed image files
-    frame_folder = "e:/video_tmp".format(folder_name)
+    frame_folder = "e:/video_tmp".format(folder_name)   # TODO: as option?
     logger.info("Frame folder: {}".format(frame_folder))
 
     if not os.path.exists(frame_folder):
@@ -343,11 +341,8 @@ def main(folder_name, destiny_file, music_file):
 
     # Process the selected frames
     with multiprocessing.Pool(processes=1) as pool:
-        # result = pool.starmap(process_frame, zip(timestamps, repeat(frame_folder)))
         partial_map = partial(process_frame, destination_folder=frame_folder)
-        result = pool.map(partial_map, timestamps)
-
-        # TODO: check result
+        result = pool.map(partial_map, timestamps)        # TODO: check result
 
     # Invoke ffmpeg
     invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file)
