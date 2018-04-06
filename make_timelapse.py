@@ -328,7 +328,7 @@ def main(folder_name, destiny_file, music_file, target_fps=30):
     logger.info('Calculated frame rate: {:0.2f}'.format(target_fps))
 
     # If needed create a folder for the processed image files
-    frame_folder = "e:/video_tmp".format(folder_name)   # TODO: as option?
+    frame_folder = "c:/tmp".format(folder_name)   # TODO: as option?
     logger.info("Frame folder: {}".format(frame_folder))
 
     if not os.path.exists(frame_folder):
@@ -361,13 +361,13 @@ if __name__ == "__main__":
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
     """
 
-    #t = timeit.Timer(lambda: main(
-    #    "E:/Datastore/TLCPRO/XL51", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-XL51.mp4", "Pong.mp3"))
-    #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
-
     t = timeit.Timer(lambda: main(
-        "E:/Datastore/TLCPRO/Grinder", "C:/Users/pauls/Dropbox/Timelapse/2018-03-15-Grinder.mp4", "countdown.mp3"))
+        "E:/Datastore/TLCPRO/XL51", "C:/Users/pauls/Dropbox/Timelapse/2018-04-06-XL51.mp4", "Eisbaer.mp3"))
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
+
+    #t = timeit.Timer(lambda: main(
+    #    "E:/Datastore/TLCPRO/Grinder", "C:/Users/pauls/Dropbox/Timelapse/2018-03-15-Grinder.mp4", "countdown.mp3"))
+    #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
 
     #t = timeit.Timer(lambda: main(
     #    "E:/Datastore/TLCPRO/FO52", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-FO52.mp4", "Song_2.mp3"))
