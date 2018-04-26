@@ -337,7 +337,7 @@ def main(folder_name, destiny_file, music_file, target_fps=30):
 
     # Process the selected frames
     logger.info("Processing selected frames...")
-    with multiprocessing.Pool() as pool:
+    with multiprocessing.Pool(processes=1) as pool:
         partial_map = partial(process_frame, destination_folder=frame_folder)
         result = pool.map(partial_map, timestamps)        # TODO: check result
 
@@ -356,12 +356,12 @@ if __name__ == "__main__":
         "C:/Users/pauls/Documents/GitHub/timelapse_ocr/test.mp4",
         "Song_2.mp3"))
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
-    """
+    
 
     t = timeit.Timer(lambda: main(
         "E:/Datastore/TLCPRO/XL51", "C:/Users/pauls/Dropbox/Timelapse/2018-04-26-XL51.mp4", "Eisbaer.mp3"))
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
-
+    """
 
     # """ """
     # t = timeit.Timer(lambda: main(
@@ -369,7 +369,7 @@ if __name__ == "__main__":
     #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
     # """ """
     t = timeit.Timer(lambda: main(
-        "E:/Datastore/TLCPRO/FO52", "C:/Users/pauls/Dropbox/Timelapse/2018-04-26-FO52.mp4", "Song_2.mp3"))
+        "E:/Datastore/TLCPRO/FO52", "C:/Users/pauls/Dropbox/Timelapse/2018-04-26-FO52.mp4", "Pong.mp3"))
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
 
     #t = timeit.Timer(lambda: main(
