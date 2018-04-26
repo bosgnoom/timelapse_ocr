@@ -32,19 +32,13 @@ import logging
 
 
 # Start logger
-# Testing different logger methods:
-# "Standard" logger:
 logging.basicConfig(format='%(levelname)s:%(funcName)s: %(message)s')
 logger = logging.getLogger(__name__)
-
-# Multiprocessing logger: (seems to cause double output, at least using PyCharm)
-#logger = multiprocessing.log_to_stderr()
-#logger = multiprocessing.get_logger(__name__)
-
 # Set loglevel
 # TODO: get logging level from argparse
 logger.setLevel(logging.INFO)
 # logger.setLevel(logging.DEBUG)
+
 
 def load_reference_image(name):
     """
@@ -84,7 +78,7 @@ def analyze_video(video_file, digits, error_folder):
     Load specified video, detect time from each frame
     Return [filename, [frame_number, datetime]]
     """
-    logger.info("{}: Analyzing {}...".format(
+    logger.debug("{}: Analyzing {}...".format(
         multiprocessing.current_process().name, video_file))
 
     # open video file
@@ -158,7 +152,7 @@ def process_frame(frame, destination_folder):
     :param destination_folder: folder where to write to
     :return: true if all frames are written to disk
     """
-    logger.info('{}: Processing images from: {}'.format(multiprocessing.current_process().name, frame[0]))
+    logger.debug('{}: Processing images from: {}'.format(multiprocessing.current_process().name, frame[0]))
 
     cap = cv2.VideoCapture(frame[0])
 
@@ -179,10 +173,11 @@ def process_frame(frame, destination_folder):
 
             frame1 = cache[image[0] - 1]
             frame2 = cache[image[0]]
-            frame3 = cache[image[0] + 1]
+            # frame3 = cache[image[0] + 1]
 
-            frame_result = cv2.addWeighted(frame1, 0.333, frame2, 0.666, 0)
-            frame_result = cv2.addWeighted(frame_result, 0.75, frame3, 0.25, 0)
+            # frame_result = cv2.addWeighted(frame1, 0.333, frame2, 0.666, 0)
+            # frame_result = cv2.addWeighted(frame_result, 0.75, frame3, 0.25, 0)
+            frame_result = cv2.addWeighted(frame1, 0.5, frame2, 0.5, 0)
 
             file_name = "{}/img{}.png".format(destination_folder, image[1].strftime('%Y%m%d%H%M'))
             logger.debug("Writing to: {}".format(file_name))
@@ -303,6 +298,7 @@ def main(folder_name, destiny_file, music_file, target_fps=30):
         os.makedirs(error_folder)
 
     # Recognize the timestamps in the video files
+    logger.info("Analyzing timestamps in source videos...")
     with multiprocessing.Pool() as pool:
         partial_map = partial(analyze_video, digits=digits, error_folder=error_folder)
         timestamps = pool.map(partial_map, raw_material)
@@ -340,6 +336,7 @@ def main(folder_name, destiny_file, music_file, target_fps=30):
         os.remove(filename)
 
     # Process the selected frames
+    logger.info("Processing selected frames...")
     with multiprocessing.Pool() as pool:
         partial_map = partial(process_frame, destination_folder=frame_folder)
         result = pool.map(partial_map, timestamps)        # TODO: check result
@@ -362,16 +359,18 @@ if __name__ == "__main__":
     """
 
     t = timeit.Timer(lambda: main(
-        "E:/Datastore/TLCPRO/XL51", "C:/Users/pauls/Dropbox/Timelapse/2018-04-06-XL51.mp4", "Eisbaer.mp3"))
+        "E:/Datastore/TLCPRO/XL51", "C:/Users/pauls/Dropbox/Timelapse/2018-04-26-XL51.mp4", "Eisbaer.mp3"))
     print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
 
-    #t = timeit.Timer(lambda: main(
-    #    "E:/Datastore/TLCPRO/Grinder", "C:/Users/pauls/Dropbox/Timelapse/2018-03-15-Grinder.mp4", "countdown.mp3"))
-    #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
 
-    #t = timeit.Timer(lambda: main(
-    #    "E:/Datastore/TLCPRO/FO52", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-FO52.mp4", "Song_2.mp3"))
+    # """ """
+    # t = timeit.Timer(lambda: main(
+    #    "E:/Datastore/TLCPRO/Grinder", "C:/Users/pauls/Dropbox/Timelapse/2018-04-21-Grinder.mp4", "Woman_2.mp3"))
     #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
+    # """ """
+    t = timeit.Timer(lambda: main(
+        "E:/Datastore/TLCPRO/FO52", "C:/Users/pauls/Dropbox/Timelapse/2018-04-26-FO52.mp4", "Song_2.mp3"))
+    print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
 
     #t = timeit.Timer(lambda: main(
     #    "E:/Datastore/TLCPRO/Hal_2", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-Hal_2.mp4", "Ghost.mp3"))
