@@ -1,11 +1,11 @@
 #!/usr/bin/python
 
 """
-    Make a timelapse video from timelapsed AVI files
-    Detect timestamp of each frame
-    Determine whether to include this frame in the final movie
-    Calculate an averaged frame
-    Invoke ffmpeg to make an h264 encoded file
+    Make a timelapse video from source AVI files:
+    - Detect timestamp of each frame
+    - Determine whether to include this frame in the final movie
+    - Calculate averaged frames
+    - Invoke ffmpeg to make a x264 encoded file
 """
 
 # Import modules for image analysis
@@ -30,14 +30,13 @@ from mutagen.mp3 import MP3
 # For logging
 import logging
 
+# Parse arguments
+import argparse
 
 # Start logger
 logging.basicConfig(format='%(levelname)s:%(funcName)s: %(message)s')
 logger = logging.getLogger(__name__)
-# Set loglevel
-# TODO: get logging level from argparse
 logger.setLevel(logging.INFO)
-# logger.setLevel(logging.DEBUG)
 
 
 def load_reference_image(name):
@@ -173,10 +172,6 @@ def process_frame(frame, destination_folder):
 
             frame1 = cache[image[0] - 1]
             frame2 = cache[image[0]]
-            # frame3 = cache[image[0] + 1]
-
-            # frame_result = cv2.addWeighted(frame1, 0.333, frame2, 0.666, 0)
-            # frame_result = cv2.addWeighted(frame_result, 0.75, frame3, 0.25, 0)
             frame_result = cv2.addWeighted(frame1, 0.5, frame2, 0.5, 0)
 
             file_name = "{}/img{}.png".format(destination_folder, image[1].strftime('%Y%m%d%H%M'))
@@ -282,7 +277,7 @@ def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file):
     logger.debug(result)
 
 
-def main(folder_name, destiny_file, music_file, target_fps=30):
+def main(folder_name, destiny_file, music_file, target_fps):
     logger.info("Starting main...")
     logger.info("Processing video folder: {}".format(folder_name))
 
@@ -348,35 +343,25 @@ def main(folder_name, destiny_file, music_file, target_fps=30):
 
 
 if __name__ == "__main__":
+    # Extra comment
+    # Parse command line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
+    parser.add_argument("-f", "--frame-rate", help="Set target frame rate, default=30 fps", default=30)
+    parser.add_argument("source_folder", help="Directory containing source video files")
+    parser.add_argument("audio_file", help="Audio file for time lapse video")
+    parser.add_argument("destiny_file", help="Target video file")
+
+    args = parser.parse_args()
+
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+
     # If we're started directly, call main() via a callable to measure performance
-
-    """
     t = timeit.Timer(lambda: main(
-        "C:/Users/pauls/Documents/GitHub/timelapse_ocr/video",
-        "C:/Users/pauls/Documents/GitHub/timelapse_ocr/test.mp4",
-        "Song_2.mp3"))
-    print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
-    
+        args.source_folder,
+        args.destiny_file,
+        args.audio_file,
+        args.frame_rate))
 
-    t = timeit.Timer(lambda: main(
-        "E:/Datastore/TLCPRO/XL51", "C:/Users/pauls/Dropbox/Timelapse/2018-04-26-XL51.mp4", "Eisbaer.mp3"))
-    print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
-    """
-
-    # """ """
-    # t = timeit.Timer(lambda: main(
-    #    "E:/Datastore/TLCPRO/Grinder", "C:/Users/pauls/Dropbox/Timelapse/2018-04-21-Grinder.mp4", "Woman_2.mp3"))
-    #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
-    # """ """
-    t = timeit.Timer(lambda: main(
-        "E:/Datastore/TLCPRO/FO52", "C:/Users/pauls/Dropbox/Timelapse/2018-04-26-FO52.mp4", "Pong.mp3"))
-    print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
-
-    #t = timeit.Timer(lambda: main(
-    #    "E:/Datastore/TLCPRO/Hal_2", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-Hal_2.mp4", "Ghost.mp3"))
-    #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
-
-    #t = timeit.Timer(lambda: main(
-    #    "E:/Datastore/TLCPRO/Hal_7b", "C:/Users/pauls/Dropbox/Timelapse/2018-03-12-Hal_7b.mp4", "Tainted_Love.mp3"))
-    #print("Time needed: {:0.1f} sec".format(t.timeit(number=1)))
-    #"""
+    print("Time needed to process: {:0.1f} sec".format(t.timeit(number=1)))
