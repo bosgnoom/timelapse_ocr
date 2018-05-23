@@ -216,37 +216,43 @@ def process_frames(frame, destination_folder):
 
     # Cache small files to increase processing speed.
     # Access large files from disk to prevent out-of-memory faults
-    if os.path.getsize(frame[0]) < 25000000: #  Let's start with 15 mb
+    cache = []
+    if os.path.getsize(frame[0]) < 15000000: #  Let's start with 25 mb
         logger.debug("Caching video file...")
-        cache = []
         ret = cap.isOpened()
         while ret:
             ret, image = cap.read()
             if ret:
                 cache.append(image)
 
-        return_value = True
-        for image in frame[2]:
-            image_name = image[1].strftime('%Y%m%d%H%M')
-            file_name = "{}/img{}.png".format(destination_folder, image_name)
-            if (image[0] >= 1) \
-                    and (image[0] < len(cache))\
-                    and not (os.path.exists(file_name)):
-                logger.debug('Decoding frame number: {}/{}'.format(image[0], len(cache)))
+    return_value = True
+    for image in frame[2]:
+        image_name = image[1].strftime('%Y%m%d%H%M')
+        file_name = "{}/img{}.png".format(destination_folder, image_name)
+        if cache:
+            frame_count = len(cache)
+        else:
+            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if (image[0] >= 1) \
+                and (image[0] < len(cache))\
+                and not (os.path.exists(file_name)):
 
+            logger.debug('Decoding frame number: {}/{}'.format(image[0], frame_count))
+
+            if cache:
                 frame1 = cache[image[0] - 1]
                 frame2 = cache[image[0]]
-                frame_result = cv2.addWeighted(frame1, 0.5, frame2, 0.5, 0)
-
-                logger.debug("Writing to: {}".format(file_name))
-                return_value = return_value and cv2.imwrite(file_name, frame_result)
             else:
-                #logger.debug("Image already exists, skipping processing...")
+                print("Pass...")
                 pass
 
-    else: # File to big, keep accessing it from disk
-        logger.debug("Skipping {}, file too big...".format(frame[0]))
-        pass
+            frame_result = cv2.addWeighted(frame1, 0.5, frame2, 0.5, 0)
+
+            logger.debug("Writing to: {}".format(file_name))
+            return_value = return_value and cv2.imwrite(file_name, frame_result)
+        else:
+            #logger.debug("Image already exists, skipping processing...")
+            pass
 
     cap.release()
 
