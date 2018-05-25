@@ -29,13 +29,14 @@ from mutagen.mp3 import MP3
 
 # For logging
 import logging
+#import chromalog
 
 # Parse arguments
 import argparse
 
 # Start logger
 logging.basicConfig(format='[%(levelname)s/%(funcName)s] %(message)s')
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()    # __name__)
 # logger.setLevel(logging.INFO)
 logger.setLevel(logging.DEBUG)
 # logger = multiprocessing.log_to_stderr()
@@ -217,7 +218,7 @@ def process_frames(frame, destination_folder):
     """
     return_value = True
     logger.info('{} - Processing images from: {}'.format(multiprocessing.current_process().name, frame[0]))
-    print(frame)
+    # print(frame)
 
     cap = cv2.VideoCapture(frame[0])
 
@@ -227,7 +228,7 @@ def process_frames(frame, destination_folder):
     if os.path.getsize(frame[0]) < 15000000:    # Let's start with 25 mb
         logger.debug("Caching video file {}...".format(frame[0]))
         ret = cap.isOpened()
-        print("Ret: {}-{}".format(frame[0], ret))
+        # print("Ret: {}-{}".format(frame[0], ret))
         while ret:
             ret, image = cap.read()
             if ret:
@@ -394,7 +395,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    print(args.verbose)
+    # print(args.verbose)
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
@@ -406,4 +407,4 @@ if __name__ == "__main__":
         args.image_folder,
         args.frame_rate))
 
-    print("Time needed to process: {:0.1f} sec".format(t.timeit(number=1)))
+    logger.info("Time needed to process: {:0.1f} sec".format(t.timeit(number=1)))
