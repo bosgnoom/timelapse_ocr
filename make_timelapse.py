@@ -129,7 +129,7 @@ def determine_timestamps(video_file, digits, error_folder):
                 second = 10 * numbers[12] + numbers[13]
                 datum = datetime.datetime(year, month, day, hour, minute, second)
 
-                logger.debug("Found time: {}".format(datum))
+                # logger.debug("Found time: {}".format(datum))
 
                 # Skip weekends
                 if datum.weekday() < 5:
@@ -233,7 +233,7 @@ def process_frames(frame, destination_folder):
             if ret:
                 cache.append(image)
     else:
-        logger.debug("Video file {} is too large, direct acces method chosen...".format(frame[0]))
+        logger.debug("Video file {} is too large, direct access method chosen...".format(frame[0]))
         pass
 
     # Process each image in the list of frames.
@@ -248,22 +248,20 @@ def process_frames(frame, destination_folder):
         else:
             frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        if (image[0] >= 1) \
-                and (image[0] < len(cache)):
-                # and not (os.path.exists(file_name)):
-
+        if image[0] >= 1 and not os.path.exists(file_name):    # assure that we can access all frames
             logger.debug('Decoding frame number: {}/{} from {}'.format(image[0], frame_count, frame[0]))
 
             # If the video is cached, use it. Else read frame from video file
             if cache:
+                # logger.debug("using cache {}".format(frame[0]))
                 frame1 = cache[image[0] - 1]
                 frame2 = cache[image[0]]
             else:
+                # logger.debug("direct access {}".format(frame[0]))
                 cap.set(cv2.CAP_PROP_POS_FRAMES, image[0] - 1)
                 ret1, frame1 = cap.read()
                 ret2, frame2 = cap.read()
-                print("Ret1 and 2: {},{}".format(ret1, ret2))
-                pass
+                # print("Ret1 and 2: {},{}".format(ret1, ret2))
 
             frame_result = cv2.addWeighted(frame1, 0.5, frame2, 0.5, 0)
 
