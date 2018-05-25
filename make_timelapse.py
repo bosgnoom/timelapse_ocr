@@ -36,9 +36,10 @@ import argparse
 # Start logger
 logging.basicConfig(format='[%(levelname)s/%(funcName)s] %(message)s')
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-#logger = multiprocessing.log_to_stderr()
-#logger.setLevel(logging.INFO)
+# logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
+# logger = multiprocessing.log_to_stderr()
+# logger.setLevel(logging.INFO)
 
 
 def load_reference_image(name):
@@ -79,13 +80,12 @@ def determine_timestamps(video_file, digits, error_folder):
     Load specified video, detect timestamps for each frame
     Return [filename, [frame_number, datetime]]
     """
-    logger.debug("{}: Analyzing {}...".format(
-        multiprocessing.current_process().name, video_file))
+    logger.info("Analyzing {}...".format(video_file))
 
     # open video file
     cap = cv2.VideoCapture(video_file)
-    logger.debug("{}: Amount of frames in {}: {}".format(
-        multiprocessing.current_process().name, video_file, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))))
+    logger.debug("Amount of frames in {}: {}".format(
+        video_file, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))))
 
     # Collect the found times here
     timeframes = []
@@ -94,6 +94,7 @@ def determine_timestamps(video_file, digits, error_folder):
     ret = cap.isOpened()
     while ret:
         ret, frame = cap.read()
+        # print("file: {} - ret: {}".format(video_file, ret))
         if ret:
             # There's a frame decoded, find the timestamp within
             # Look only at the timestamp
@@ -117,6 +118,7 @@ def determine_timestamps(video_file, digits, error_folder):
             numbers = [digit[1] for digit in found_numbers]
 
             # Process the numbers if there are 14 figures found
+            # print("Found numbers: {}-{}".format(video_file, numbers))
             if len(numbers) == 14:
                 # Calculate year, month... into a date
                 year = 1000 * numbers[0] + 100 * numbers[1] + 10 * numbers[2] + numbers[3]
@@ -132,6 +134,9 @@ def determine_timestamps(video_file, digits, error_folder):
                 # Skip weekends
                 if datum.weekday() < 5:
                     timeframes.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1, datum])
+                else:
+                    # print("Video {} is from a weekend...".format(video_file))
+                    pass
 
             else:
                 logger.error("FAILURE IN RECOGNIZING FRAME!")
@@ -142,6 +147,7 @@ def determine_timestamps(video_file, digits, error_folder):
 
     # close video file
     cap.release()
+    # print("Return from determine_timestamps: {}".format([video_file, len(timeframes)]))
     return [video_file, len(timeframes), timeframes]
 
 
@@ -181,7 +187,7 @@ def select_timestamps(amount_of_frames_needed, timestamps):
     start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
     stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
 
-    logger.debug("Selecting frames from {} to {}".format(start_time, stop_time))
+    logger.info("Selecting frames from {} to {}".format(start_time, stop_time))
 
     # Make a new list of timestamps
     # [ video_file, number_of_frames, [[frame nr, timestamp], [nr, time], [...]]]
@@ -209,23 +215,31 @@ def process_frames(frame, destination_folder):
     :param destination_folder: folder where to write to
     :return: true if all frames are written to disk
     """
-    return_value = False
-    logger.debug('{} - Processing images from: {}'.format(multiprocessing.current_process().name, frame[0]))
+    return_value = True
+    logger.info('{} - Processing images from: {}'.format(multiprocessing.current_process().name, frame[0]))
+    print(frame)
 
     cap = cv2.VideoCapture(frame[0])
 
     # Cache small files to increase processing speed.
     # Access large files from disk to prevent out-of-memory faults
     cache = []
-    if os.path.getsize(frame[0]) < 15000000: #  Let's start with 25 mb
-        logger.debug("Caching video file...")
+    if os.path.getsize(frame[0]) < 15000000:    # Let's start with 25 mb
+        logger.debug("Caching video file {}...".format(frame[0]))
         ret = cap.isOpened()
+        print("Ret: {}-{}".format(frame[0], ret))
         while ret:
             ret, image = cap.read()
             if ret:
                 cache.append(image)
+    else:
+        logger.debug("Video file {} is too large, direct acces method chosen...".format(frame[0]))
+        pass
 
-    return_value = True
+    # Process each image in the list of frames.
+    # Check if image already exists (means lower processing time is needed)
+    # Get two frames and calculate the averaged frame
+    # Write back as file
     for image in frame[2]:
         image_name = image[1].strftime('%Y%m%d%H%M')
         file_name = "{}/img{}.png".format(destination_folder, image_name)
@@ -233,25 +247,30 @@ def process_frames(frame, destination_folder):
             frame_count = len(cache)
         else:
             frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
         if (image[0] >= 1) \
-                and (image[0] < len(cache))\
-                and not (os.path.exists(file_name)):
+                and (image[0] < len(cache)):
+                # and not (os.path.exists(file_name)):
 
-            logger.debug('Decoding frame number: {}/{}'.format(image[0], frame_count))
+            logger.debug('Decoding frame number: {}/{} from {}'.format(image[0], frame_count, frame[0]))
 
+            # If the video is cached, use it. Else read frame from video file
             if cache:
                 frame1 = cache[image[0] - 1]
                 frame2 = cache[image[0]]
             else:
-                print("Pass...")
+                cap.set(cv2.CAP_PROP_POS_FRAMES, image[0] - 1)
+                ret1, frame1 = cap.read()
+                ret2, frame2 = cap.read()
+                print("Ret1 and 2: {},{}".format(ret1, ret2))
                 pass
 
             frame_result = cv2.addWeighted(frame1, 0.5, frame2, 0.5, 0)
 
-            logger.debug("Writing to: {}".format(file_name))
+            # logger.debug("Writing to: {}".format(file_name))
             return_value = return_value and cv2.imwrite(file_name, frame_result)
         else:
-            #logger.debug("Image already exists, skipping processing...")
+            # logger.debug("Image already exists, skipping processing...")
             pass
 
     cap.release()
@@ -310,7 +329,7 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
     logger.info("Length of audio file: {:0.1f} sec".format(audio_file.info.length))
 
     # Calculate the total amount of frames needed
-    amount_of_frames_needed = target_fps * audio_file.info.length
+    amount_of_frames_needed = int(target_fps * audio_file.info.length)
     logger.info("Amount of frames needed: {}".format(amount_of_frames_needed))
 
     # Load the image containing the figures to recognize.
@@ -326,7 +345,7 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
 
     # Recognize the timestamps in the video files
     logger.info("Analyzing timestamps in source videos...")
-    with multiprocessing.Pool() as pool:
+    with multiprocessing.Pool(processes=1) as pool:
         partial_map = partial(determine_timestamps, digits=digits, error_folder=error_folder)
         timestamps = pool.map(partial_map, raw_material)
 
@@ -352,7 +371,7 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
 
     # Process the selected frames
     logger.info("Processing selected frames...")
-    #with multiprocessing.Pool(processes=1) as pool:
+    # with multiprocessing.Pool(processes=1) as pool:
     #     partial_map = partial(process_frames, destination_folder=frame_folder)
     #    result = pool.map(partial_map, timestamps)        # TODO: check result
     for iets in timestamps:
