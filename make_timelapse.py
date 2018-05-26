@@ -436,10 +436,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Invoke ffmpeg (testing)
-    # invoke_ffmpeg(args.frame_rate, args.audio_file, args.image_folder, args.destiny_file)
-
-    # print(args.verbose)
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
