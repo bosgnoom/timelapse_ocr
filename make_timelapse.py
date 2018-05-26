@@ -182,8 +182,8 @@ def select_timestamps(amount_of_frames_needed, timestamps):
     logger.debug("Reducing to {:1.1f} frames per day...".format(total_frames_per_day))
 
     # Calculate start and stop time
-    start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (2 + total_frames_per_day / 2.0))
-    stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (2 + total_frames_per_day / 2.0))
+    start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (total_frames_per_day / 2.0) + 2.5)
+    stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (total_frames_per_day / 2.0) + 2.5)
 
     logger.info("Selecting frames from {} to {}".format(start_time, stop_time))
 
@@ -436,14 +436,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Invoke ffmpeg
-    invoke_ffmpeg(args.frame_rate, args.audio_file, args.image_folder, args.destiny_file)
+    # Invoke ffmpeg (testing)
+    # invoke_ffmpeg(args.frame_rate, args.audio_file, args.image_folder, args.destiny_file)
 
     # print(args.verbose)
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
-"""
     # If we're started directly, call main() via a callable to measure performance
     t = timeit.Timer(lambda: main(
         args.source_folder,
@@ -453,4 +452,3 @@ if __name__ == "__main__":
         args.frame_rate))
 
     logger.info("Time needed to process: {:0.1f} sec".format(t.timeit(number=1)))
-"""
