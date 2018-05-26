@@ -9,3 +9,5 @@ video/*
 logos/*
 audio/*
 
+*.pyc
+process_all.py
