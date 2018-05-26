@@ -28,20 +28,16 @@ import os
 from mutagen.mp3 import MP3
 
 # For logging
-import sys
 import logging
-import chromalog
 
 # Parse arguments
 import argparse
 
 # Start logger
-chromalog.basicConfig(format='[%(levelname)s/%(funcName)s] %(message)s')
+logging.basicConfig(format='[%(levelname)s/%(funcName)s] %(message)s')
 logger = logging.getLogger(__name__)
-# logger.setLevel(logging.INFO)
-logger.setLevel(logging.DEBUG)
-# logger = multiprocessing.log_to_stderr()
-# logger.setLevel(logging.INFO)
+logger.setLevel(logging.INFO)
+# logger.setLevel(logging.DEBUG)
 
 
 def load_reference_image(name):
@@ -186,8 +182,8 @@ def select_timestamps(amount_of_frames_needed, timestamps):
     logger.debug("Reducing to {:1.1f} frames per day...".format(total_frames_per_day))
 
     # Calculate start and stop time
-    start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (1 + total_frames_per_day / 2.0))
-    stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (1 + total_frames_per_day / 2.0))
+    start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (2 + total_frames_per_day / 2.0))
+    stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (2 + total_frames_per_day / 2.0))
 
     logger.info("Selecting frames from {} to {}".format(start_time, stop_time))
 
@@ -251,7 +247,7 @@ def process_frames(frame, destination_folder):
     :return: true if all frames are written to disk
     """
     return_value = True
-    logger.info('{} - Processing images from: {}'.format(multiprocessing.current_process().name, frame[0]))
+    logger.info('Processing images from: {}'.format(frame[0]))
     # print(frame)
 
     cap = cv2.VideoCapture(frame[0])
@@ -259,7 +255,7 @@ def process_frames(frame, destination_folder):
     # Cache small files to increase processing speed.
     # Access large files from disk to prevent out-of-memory faults
     cache = []
-    if os.path.getsize(frame[0]) < 15000000:    # Let's start with 25 mb
+    if os.path.getsize(frame[0]) < 25000000:    # Let's start with 25 mb
         logger.debug("Caching video file {}...".format(frame[0]))
         ret = cap.isOpened()
         # print("Ret: {}-{}".format(frame[0], ret))
@@ -410,11 +406,16 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
 
     # Process the selected frames
     logger.info("Processing selected frames...")
-    # with multiprocessing.Pool(processes=1) as pool:
-    #     partial_map = partial(process_frames, destination_folder=frame_folder)
-    #    result = pool.map(partial_map, timestamps)        # TODO: check result
-    for iets in timestamps:
-        process_frames(iets, destination_folder=frame_folder)
+    with multiprocessing.Pool(processes=1) as pool:
+        partial_map = partial(process_frames, destination_folder=frame_folder)
+        result = pool.map(partial_map, timestamps)        # TODO: check result
+
+    if all(result):
+        logger.info("All frames processed OK")
+    else:
+        logger.error("Errors occurred during the processing of frames...")
+    # for iets in timestamps:
+    #    process_frames(iets, destination_folder=frame_folder)
 
     # Invoke ffmpeg
     # invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file)
