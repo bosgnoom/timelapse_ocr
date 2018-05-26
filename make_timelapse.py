@@ -28,15 +28,16 @@ import os
 from mutagen.mp3 import MP3
 
 # For logging
+import sys
 import logging
-#import chromalog
+import chromalog
 
 # Parse arguments
 import argparse
 
 # Start logger
-logging.basicConfig(format='[%(levelname)s/%(funcName)s] %(message)s')
-logger = logging.getLogger()    # __name__)
+chromalog.basicConfig(format='[%(levelname)s/%(funcName)s] %(message)s')
+logger = logging.getLogger(__name__)
 # logger.setLevel(logging.INFO)
 logger.setLevel(logging.DEBUG)
 # logger = multiprocessing.log_to_stderr()
@@ -171,7 +172,7 @@ def select_timestamps(amount_of_frames_needed, timestamps):
 
     # Loop over all timestamps, add the days to a list
     # Could be replaced by a double list comprehension, but I am not able to produce this on my own
-    # Or rather, a double list comprehension is not comprehensable for me ;-)
+    # Or rather, a double list comprehension is not comprehensible for me ;-)
     days = []
     for video_file in timestamps:
         for time_frame in video_file[2]:
@@ -185,8 +186,8 @@ def select_timestamps(amount_of_frames_needed, timestamps):
     logger.debug("Reducing to {:1.1f} frames per day...".format(total_frames_per_day))
 
     # Calculate start and stop time
-    start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
-    stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (total_frames_per_day / 2))
+    start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (1 + total_frames_per_day / 2.0))
+    stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (1 + total_frames_per_day / 2.0))
 
     logger.info("Selecting frames from {} to {}".format(start_time, stop_time))
 
@@ -205,7 +206,40 @@ def select_timestamps(amount_of_frames_needed, timestamps):
                 times.append(frames)
         selected_timestamps.append([video_file[0], len(times), times])
 
-    return selected_timestamps
+    return [selected_timestamps, start_time, stop_time]
+
+
+def cleanup_image_folder(image_folder, start_time, stop_time):
+    """
+    Check image folder, to be sure only the needed images are left
+    :param start_time: start time of needed image
+    :param stop_time: end time of needed image
+    :param image_folder: image containing images
+    :return: nothing
+    """
+
+    if start_time and stop_time:
+        logger.debug("Frame folder might need cleaning up")
+        images = glob.glob("{}/img*.png".format(image_folder))
+        for image in images:
+            path, image = os.path.split(image)
+            try:
+                image_time = datetime.datetime.strptime(image, "img%Y%m%d%H%M.png")
+                if start_time < datetime.timedelta(hours=image_time.hour,
+                    minutes=image_time.minute) < stop_time:
+                    # logger.debug("Keeping {}".format(image))
+                    # No sure how to invert this logic. Readability counts...
+                    pass
+                else:
+                    logger.debug("Removing {}/{}".format(path, image))
+                    try:
+                        os.remove("{}/{}".format(path, image))
+                    except OSError:
+                        logger.error("Cannot remove {}/{}...".format(path, image))
+            except ValueError:
+                logger.error("Cannot parse date from {}/{}...".format(path, image))
+
+    return True
 
 
 def process_frames(frame, destination_folder):
@@ -328,14 +362,14 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
     logger.info("Length of audio file: {:0.1f} sec".format(audio_file.info.length))
 
     # Calculate the total amount of frames needed
-    amount_of_frames_needed = int(target_fps * audio_file.info.length)
+    amount_of_frames_needed = int(target_fps * audio_file.info.length) + 1
     logger.info("Amount of frames needed: {}".format(amount_of_frames_needed))
 
     # Load the image containing the figures to recognize.
     digits = load_reference_image('cijfers.png')
 
     # Load the list of video files to process
-    raw_material = [avi_file for avi_file in glob.glob('{0}/*.AVI'.format(folder_name))]
+    raw_material = [avi_file for avi_file in glob.glob('{0}/*/*.AVI'.format(folder_name))]
 
     # Create a place where to put non-recognized/error time frames
     error_folder = "{}/error".format(folder_name)
@@ -344,7 +378,7 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
 
     # Recognize the timestamps in the video files
     logger.info("Analyzing timestamps in source videos...")
-    with multiprocessing.Pool(processes=1) as pool:
+    with multiprocessing.Pool() as pool:
         partial_map = partial(determine_timestamps, digits=digits, error_folder=error_folder)
         timestamps = pool.map(partial_map, raw_material)
 
@@ -353,13 +387,15 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
     logger.info("Amount of frames available: {}".format(amount_of_frames_available))
 
     # Reduce the amount of frames if needed
+    start_time = False
+    stop_time = False
     if amount_of_frames_available > amount_of_frames_needed:
         # There are more frames than needed, reduce the amount of frames
-        timestamps = select_timestamps(amount_of_frames_needed, timestamps)
+        timestamps, start_time, stop_time = select_timestamps(amount_of_frames_needed, timestamps)
 
     # Check again how much frames are available, better safe than sorry...
     amount_of_frames_available = sum([i[1] for i in timestamps])
-    target_fps = int(100 * amount_of_frames_available / audio_file.info.length) / 100
+    target_fps = int(100 * amount_of_frames_available / audio_file.info.length + 1) / 100
     logger.info('Calculated frame rate: {:0.2f}'.format(target_fps))
 
     # If needed create a folder for the processed image files
@@ -367,6 +403,10 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
     if not os.path.exists(frame_folder):
         logger.debug("Image folder not existing, creating...")
         os.makedirs(frame_folder)
+
+    # Clean up the image folder, remove unneeded files...
+    logger.info("Cleaning up frame folder...")
+    cleanup_image_folder(frame_folder, start_time, stop_time)
 
     # Process the selected frames
     logger.info("Processing selected frames...")
