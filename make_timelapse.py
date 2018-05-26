@@ -37,7 +37,7 @@ import argparse
 logging.basicConfig(format='[%(levelname)s/%(funcName)s] %(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-# logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
 
 def load_reference_image(name):
@@ -321,6 +321,13 @@ def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file):
         for image_file in file_list:
             text_file.write("file '{}'\r\n".format(image_file))
 
+    # OK... Perhaps target_fps will be obsolete now as parameter...
+    amount_of_images = len(file_list)
+    length_of_audio_file = MP3(music_file).info.length
+    logger.debug("Calculated FPS: {}".format(target_fps))
+    target_fps = int((100 * amount_of_images / length_of_audio_file)) / 100
+    logger.debug("Actual FPS: {}".format(target_fps))
+
     command = []
     command.append('ffmpeg')
 
@@ -359,7 +366,7 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
     logger.info("Length of audio file: {:0.1f} sec".format(audio_file.info.length))
 
     # Calculate the total amount of frames needed
-    amount_of_frames_needed = int(target_fps * audio_file.info.length) + 1
+    amount_of_frames_needed = int(target_fps * audio_file.info.length)
     logger.info("Amount of frames needed: {}".format(amount_of_frames_needed))
 
     # Load the image containing the figures to recognize.
