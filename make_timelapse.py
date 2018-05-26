@@ -313,19 +313,19 @@ def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file):
         target_fps is the number of frames per second for the movie
         codec based on x264 and aac audio (mobile phone proof settings)
         """
-    # First, rename all files to img0xxxx.png to compensate for windows ffmpeg (missing glob)
+    # First, get all files, compensate for windows ffmpeg (missing glob)
     file_list = [file for file in os.listdir(frame_folder) if file.endswith('.png')]
     file_list.sort()
 
-    for i, file_name in enumerate(file_list):
-        logger.debug("{}-{}".format(i, file_name))
-        os.rename(frame_folder + '/' + file_name, frame_folder + '/img{:05d}.png'.format(i))
+    with open("{}/files.txt".format(frame_folder), "w") as text_file:
+        for image_file in file_list:
+            text_file.write("file '{}'\r\n".format(image_file))
 
     command = []
     command.append('ffmpeg')
 
     # Convert images into video
-    command.append("-y -r {} -i {}/img0%4d.png".format(target_fps, frame_folder))
+    command.append("-y -r {} -f concat -safe 0 -i {}/files.txt".format(target_fps, frame_folder))
 
     # Add soundtrack
     command.append('-i {}'.format(music_file))
@@ -344,6 +344,7 @@ def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file):
 
     command = ' '.join(command)
 
+    # print(command)
     result = os.system(str(command))
     logger.debug(result)
 
@@ -418,13 +419,12 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
     #    process_frames(iets, destination_folder=frame_folder)
 
     # Invoke ffmpeg
-    # invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file)
+    invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file)
 
     logger.info('All done...')
 
 
 if __name__ == "__main__":
-    # Extra comment
     # Parse command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
@@ -436,10 +436,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # Invoke ffmpeg
+    invoke_ffmpeg(args.frame_rate, args.audio_file, args.image_folder, args.destiny_file)
+
     # print(args.verbose)
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
+"""
     # If we're started directly, call main() via a callable to measure performance
     t = timeit.Timer(lambda: main(
         args.source_folder,
@@ -449,3 +453,4 @@ if __name__ == "__main__":
         args.frame_rate))
 
     logger.info("Time needed to process: {:0.1f} sec".format(t.timeit(number=1)))
+"""
