@@ -255,7 +255,7 @@ def process_frames(frame, destination_folder):
     # Cache small files to increase processing speed.
     # Access large files from disk to prevent out-of-memory faults
     cache = []
-    if os.path.getsize(frame[0]) < 25000000:    # Let's start with 25 mb
+    if os.path.getsize(frame[0]) < 50000000:    # Let's start with 25 mb
         logger.debug("Caching video file {}...".format(frame[0]))
         ret = cap.isOpened()
         # print("Ret: {}-{}".format(frame[0], ret))
@@ -414,7 +414,7 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
 
     # Process the selected frames
     logger.info("Processing selected frames...")
-    with multiprocessing.Pool(processes=1) as pool:
+    with multiprocessing.Pool() as pool:
         partial_map = partial(process_frames, destination_folder=frame_folder)
         result = pool.map(partial_map, timestamps)        # TODO: check result
 
