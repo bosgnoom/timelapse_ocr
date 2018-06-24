@@ -37,7 +37,7 @@ import argparse
 logging.basicConfig(format='[%(levelname)s/%(funcName)s] %(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
 
 
 def load_reference_image(name):
