@@ -33,6 +33,9 @@ import logging
 # Parse arguments
 import argparse
 
+# Font import
+from PIL import ImageFont, ImageDraw, Image
+
 # Start logger
 logging.basicConfig(format='[%(levelname)s/%(funcName)s] %(message)s')
 logger = logging.getLogger(__name__)
@@ -248,7 +251,6 @@ def process_frames(frame, destination_folder):
     """
     return_value = True
     logger.info('Processing images from: {}'.format(frame[0]))
-    # print(frame)
 
     cap = cv2.VideoCapture(frame[0])
 
@@ -295,6 +297,17 @@ def process_frames(frame, destination_folder):
                 # print("Ret1 and 2: {},{}".format(ret1, ret2))
 
             frame_result = cv2.addWeighted(frame1, 0.5, frame2, 0.5, 0)
+
+            font = ImageFont.truetype("C:\Windows\Fonts\8bit.[fontvir.us].ttf", 28)
+            frame_pil = Image.fromarray(frame_result)
+            draw = ImageDraw.Draw(frame_pil)
+            draw.rectangle(((400, 704), (560, 720)), fill=(0, 0, 0, 0))
+            draw.rectangle(((835, 704), (880, 720)), fill=(0, 0, 0, 0))
+            draw.text((175, 698), "(c) Paul Schouten", font=font, fill=(255, 255, 255, 0))
+            draw.text((1000, 698), "Sekisui", font=font, fill=(255, 255, 255, 0))
+
+            frame_result = np.array(frame_pil)
+
 
             # logger.debug("Writing to: {}".format(file_name))
             return_value = return_value and cv2.imwrite(file_name, frame_result)
