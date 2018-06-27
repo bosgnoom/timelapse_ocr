@@ -256,7 +256,7 @@ def process_frames(frame, destination_folder):
     # Access large files from disk to prevent out-of-memory faults
     cache = []
     if os.path.getsize(frame[0]) < 50000000:    # Let's start with 50 mb
-        logger.debug("Caching video file {}...".format(frame[0]))
+        logger.info("Caching video file {}...".format(frame[0]))
         ret = cap.isOpened()
         # print("Ret: {}-{}".format(frame[0], ret))
         while ret:
@@ -264,7 +264,7 @@ def process_frames(frame, destination_folder):
             if ret:
                 cache.append(image)
     else:
-        logger.debug("Video file {} is too large, direct access method chosen...".format(frame[0]))
+        logger.info("Video file {} is too large, direct access method chosen...".format(frame[0]))
         pass
 
     # Process each image in the list of frames.
