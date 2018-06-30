@@ -250,7 +250,7 @@ def process_frames(frame, destination_folder):
     :return: true if all frames are written to disk
     """
     return_value = True
-    logger.info('Processing images from: {}'.format(frame[0]))
+    logger.debug('Processing images from: {}'.format(frame[0]))
 
     cap = cv2.VideoCapture(frame[0])
 
@@ -307,9 +307,8 @@ def process_frames(frame, destination_folder):
             draw.text((1000, 698), "Sekisui", font=font, fill=(255, 255, 255, 0))
 
             frame_result = np.array(frame_pil)
-
-
             # logger.debug("Writing to: {}".format(file_name))
+
             return_value = return_value and cv2.imwrite(file_name, frame_result)
         else:
             # logger.debug("Image already exists, skipping processing...")
