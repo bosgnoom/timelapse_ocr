@@ -161,7 +161,6 @@ def select_timestamps(amount_of_frames_needed, timestamps):
     - Each frame is 5 minutes apart (assumption from raw footage), so
     - Start time = 12:00 - (300/2) * 5 minutes
     - Stop time = 12:00 + (300/2) * 5 minutes
-    
     :param amount_of_frames_needed: the amount of frames needed
     :param timestamps: original list
 
@@ -301,10 +300,10 @@ def process_frames(frame, destination_folder):
             font = ImageFont.truetype("C:\Windows\Fonts\8bit.[fontvir.us].ttf", 28)
             frame_pil = Image.fromarray(frame_result)
             draw = ImageDraw.Draw(frame_pil)
-            draw.rectangle(((400, 704), (560, 720)), fill=(0, 0, 0, 0))
-            draw.rectangle(((835, 704), (880, 720)), fill=(0, 0, 0, 0))
+            draw.rectangle(((400, 704), (880, 720)), fill=(0, 0, 0, 0)) # was 560
+            # draw.rectangle(((835, 704), (880, 720)), fill=(0, 0, 0, 0))
             draw.text((175, 698), "(c) Paul Schouten", font=font, fill=(255, 255, 255, 0))
-            draw.text((1000, 698), "Sekisui", font=font, fill=(255, 255, 255, 0))
+            draw.text((1000, 698), "(c) Sekisui", font=font, fill=(255, 255, 255, 0))
 
             frame_result = np.array(frame_pil)
             # logger.debug("Writing to: {}".format(file_name))
@@ -319,24 +318,30 @@ def process_frames(frame, destination_folder):
     return return_value
 
 
-def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file):
+def invoke_ffmpeg(music_file, frame_folder, destiny_file):
     """
         Prepare ffmpeg command and execute
         target_fps is the number of frames per second for the movie
         codec based on x264 and aac audio (mobile phone proof settings)
-        """
-    # First, get all files, compensate for windows ffmpeg (missing glob)
+    """
+
+    # Remove the target video file
+    try:
+        os.remove(destiny_file)
+    except OSError:
+        logger.error("Cannot remove {}...".format(destiny_file))
+
+    # Get all images to process, compensate for windows ffmpeg (missing glob)
     file_list = [file for file in os.listdir(frame_folder) if file.endswith('.png')]
     file_list.sort()
 
     with open("{}/files.txt".format(frame_folder), "w") as text_file:
         for image_file in file_list:
-            text_file.write("file '{}'\r\n".format(image_file))
+            text_file.write("file '{}'\n".format(image_file))
 
-    # OK... Perhaps target_fps will be obsolete now as parameter...
+    # Calculate the target frames per second for the video
     amount_of_images = len(file_list)
     length_of_audio_file = MP3(music_file).info.length
-    logger.debug("Calculated FPS: {}".format(target_fps))
     target_fps = int((100 * amount_of_images / length_of_audio_file)) / 100
     logger.debug("Actual FPS: {}".format(target_fps))
 
@@ -344,7 +349,8 @@ def invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file):
     command.append('ffmpeg')
 
     # Convert images into video
-    command.append("-y -r {} -f concat -safe 0 -i {}/files.txt".format(target_fps, frame_folder))
+    command.append('-loglevel quiet')
+    command.append("-y -r {0} -f concat -safe 0 -i {1}/files.txt".format(target_fps, frame_folder))
 
     # Add soundtrack
     command.append('-i {}'.format(music_file))
@@ -436,7 +442,7 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
         logger.error("Errors occurred during the processing of frames...")
 
     # Invoke ffmpeg
-    invoke_ffmpeg(target_fps, music_file, frame_folder, destiny_file)
+    invoke_ffmpeg(music_file, frame_folder, destiny_file)
 
     logger.info('All done...')
 
