@@ -324,6 +324,7 @@ def invoke_ffmpeg(music_file, frame_folder, destiny_file):
         target_fps is the number of frames per second for the movie
         codec based on x264 and aac audio (mobile phone proof settings)
     """
+    logger.info("Running ffmpeg...")
 
     # Remove the target video file
     try:
@@ -371,7 +372,7 @@ def invoke_ffmpeg(music_file, frame_folder, destiny_file):
 
     # print(command)
     result = os.system(str(command))
-    logger.debug(result)
+    logger.debug("Result from ffmpeg: {}".format(result))
 
 
 def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
