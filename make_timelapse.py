@@ -34,7 +34,7 @@ import logging
 import argparse
 
 # Font import
-from PIL import ImageFont, ImageDraw, Image
+# from PIL import ImageFont, ImageDraw, Image
 
 # Start logger
 logging.basicConfig(format='[%(levelname)s/%(funcName)s] %(message)s')
@@ -76,7 +76,7 @@ def load_reference_image(name):
     return digits
 
 
-def determine_timestamps(video_file, digits, error_folder):
+def determine_timestamps(video_file, digits):
     """
     Load specified video, detect timestamps for each frame
     Return [filename, [frame_number, datetime]]
@@ -134,17 +134,15 @@ def determine_timestamps(video_file, digits, error_folder):
 
                 # Skip weekends
                 if datum.weekday() < 5:
-                    timeframes.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1, datum])
+                    if (minute % 5 == 0 and second < 30) or (minute % 4 == 0 and second > 30):
+                        logger.debug("Found time: {}".format(datum))
+                        timeframes.append([int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1, datum])
                 else:
                     # print("Video {} is from a weekend...".format(video_file))
                     pass
 
             else:
                 logger.error("FAILURE IN RECOGNIZING FRAME!")
-                filename = "{}/img-{}-{}.png".format(
-                    error_folder, os.path.basename(video_file), cv2.CAP_PROP_POS_FRAMES - 1)
-                logger.error("Writing to: {}".format(filename))
-                cv2.imwrite(filename, frame_snip)
 
     # close video file
     cap.release()
@@ -161,10 +159,6 @@ def select_timestamps(amount_of_frames_needed, timestamps):
     - Each frame is 5 minutes apart (assumption from raw footage), so
     - Start time = 12:00 - (300/2) * 5 minutes
     - Stop time = 12:00 + (300/2) * 5 minutes
-    :param amount_of_frames_needed: the amount of frames needed
-    :param timestamps: original list
-
-    :return: list of selected timeframes
     """
     logger.debug("Enough frames are available, checking which ones are needed...")
 
@@ -184,8 +178,8 @@ def select_timestamps(amount_of_frames_needed, timestamps):
     logger.debug("Reducing to {:1.1f} frames per day...".format(total_frames_per_day))
 
     # Calculate start and stop time
-    start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (total_frames_per_day / 2.0) + 2.5)
-    stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (total_frames_per_day / 2.0) + 2.5)
+    start_time = datetime.timedelta(hours=12) - datetime.timedelta(minutes=5 * (total_frames_per_day / 2.0) + 0.0)
+    stop_time = datetime.timedelta(hours=12) + datetime.timedelta(minutes=5 * (total_frames_per_day / 2.0) + 0.0)
 
     logger.info("Selecting frames from {} to {}".format(start_time, stop_time))
 
@@ -200,8 +194,10 @@ def select_timestamps(amount_of_frames_needed, timestamps):
                 hours=time_frame.hour,
                 minutes=time_frame.minute,
                 seconds=time_frame.second)
+
             if start_time < time_to_match < stop_time:
                 times.append(frames)
+                logger.debug("Time: {}".format(time_to_match))
         selected_timestamps.append([video_file[0], len(times), times])
 
     return [selected_timestamps, start_time, stop_time]
@@ -224,9 +220,9 @@ def cleanup_image_folder(image_folder, start_time, stop_time):
             try:
                 image_time = datetime.datetime.strptime(image, "img%Y%m%d%H%M.png")
                 if start_time < datetime.timedelta(hours=image_time.hour,
-                    minutes=image_time.minute) < stop_time:
+                                                   minutes=image_time.minute) < stop_time:
                     # logger.debug("Keeping {}".format(image))
-                    # No sure how to invert this logic. Readability counts...
+                    # Not sure how to invert this logic. Readability counts...
                     pass
                 else:
                     logger.debug("Removing {}/{}".format(path, image))
@@ -249,7 +245,7 @@ def process_frames(frame, destination_folder):
     :return: true if all frames are written to disk
     """
     return_value = True
-    logger.debug('Processing images from: {}'.format(frame[0]))
+    logger.info('Processing images from: {}'.format(frame[0]))
 
     cap = cv2.VideoCapture(frame[0])
 
@@ -257,7 +253,7 @@ def process_frames(frame, destination_folder):
     # Access large files from disk to prevent out-of-memory faults
     cache = []
     if os.path.getsize(frame[0]) < 50000000:    # Let's start with 50 mb
-        logger.info("Caching video file {}...".format(frame[0]))
+        logger.debug("Caching video file {}...".format(frame[0]))
         ret = cap.isOpened()
         # print("Ret: {}-{}".format(frame[0], ret))
         while ret:
@@ -265,7 +261,7 @@ def process_frames(frame, destination_folder):
             if ret:
                 cache.append(image)
     else:
-        logger.info("Video file {} is too large, direct access method chosen...".format(frame[0]))
+        logger.debug("Video file {} is too large, direct access method chosen...".format(frame[0]))
         pass
 
     # Process each image in the list of frames.
@@ -281,7 +277,7 @@ def process_frames(frame, destination_folder):
             frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         if image[0] >= 1 and not os.path.exists(file_name):    # assure that we can access all frames
-            logger.debug('Decoding frame number: {}/{} from {}'.format(image[0], frame_count, frame[0]))
+            logger.debug('Decoding frame number: {}/{}'.format(image[0], frame_count))
 
             # If the video is cached, use it. Else read frame from video file
             if cache:
@@ -295,9 +291,10 @@ def process_frames(frame, destination_folder):
                 ret2, frame2 = cap.read()
                 # print("Ret1 and 2: {},{}".format(ret1, ret2))
 
-            frame_result = cv2.addWeighted(frame1, 0.5, frame2, 0.5, 0)
-
-            font = ImageFont.truetype("C:\Windows\Fonts\8bit.[fontvir.us].ttf", 28)
+            frame = cv2.addWeighted(frame1, 0.5, frame2, 0.5, 0)
+            frame_result = cv2.resize(frame[0:704, 0:1279], (1280, 720))
+            """
+            font = ImageFont.truetype("C:\\Windows\\Fonts\\8bit.[fontvir.us].ttf", 28)
             frame_pil = Image.fromarray(frame_result)
             draw = ImageDraw.Draw(frame_pil)
             draw.rectangle(((400, 704), (880, 720)), fill=(0, 0, 0, 0)) # was 560
@@ -306,7 +303,9 @@ def process_frames(frame, destination_folder):
             draw.text((1000, 698), "(c) Sekisui", font=font, fill=(255, 255, 255, 0))
 
             frame_result = np.array(frame_pil)
+            
             # logger.debug("Writing to: {}".format(file_name))
+            """
 
             return_value = return_value and cv2.imwrite(file_name, frame_result)
         else:
@@ -336,6 +335,14 @@ def invoke_ffmpeg(music_file, frame_folder, destiny_file):
     file_list = [file for file in os.listdir(frame_folder) if file.endswith('.png')]
     file_list.sort()
 
+    # Rename all files into sequence
+    for file_number, file_name in enumerate(file_list):
+        os.rename("{}/{}".format(frame_folder, file_name), "{}/{:06d}.png".format(frame_folder, file_number))
+
+    # Get all renamed files (again...)
+    file_list = [file for file in os.listdir(frame_folder) if file.endswith('.png')]
+    file_list.sort()
+
     with open("{}/files.txt".format(frame_folder), "w") as text_file:
         for image_file in file_list:
             text_file.write("file '{}'\n".format(image_file))
@@ -344,29 +351,24 @@ def invoke_ffmpeg(music_file, frame_folder, destiny_file):
     amount_of_images = len(file_list)
     length_of_audio_file = MP3(music_file).info.length
     target_fps = int((100 * amount_of_images / length_of_audio_file)) / 100
-    logger.debug("Actual FPS: {}".format(target_fps))
+    # target_fps = 60
+    logger.info("Actual FPS: {}".format(target_fps))
 
-    command = []
-    command.append('ffmpeg')
+    command = ['ffmpeg', '-loglevel quiet',
+               "-y -r {0} -f concat -safe 0 -i {1}/files.txt".format(target_fps, frame_folder),
+               '-i {}'.format(music_file), '-vcodec libx264 -profile:v high -preset slow', '-pix_fmt yuv420p',
+               '-vprofile baseline -movflags +faststart', '-strict -2 -acodec aac -b:a 128k', '-shortest',
+               '{}'.format(destiny_file)]
 
     # Convert images into video
-    command.append('-loglevel quiet')
-    command.append("-y -r {0} -f concat -safe 0 -i {1}/files.txt".format(target_fps, frame_folder))
 
     # Add soundtrack
-    command.append('-i {}'.format(music_file))
 
     # Set video codec
-    command.append('-vcodec libx264 -profile:v high -preset slow')
-    command.append('-pix_fmt yuv420p')
-    command.append('-vprofile baseline -movflags +faststart')
-    command.append('-strict -2 -acodec aac -b:a 128k')
 
     # Cut video/audio stream by the shortest one
-    # command.append('-shortest')
 
     # Filename
-    command.append('{}'.format(destiny_file))
 
     command = ' '.join(command)
 
@@ -401,8 +403,8 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
 
     # Recognize the timestamps in the video files
     logger.info("Analyzing timestamps in source videos...")
-    with multiprocessing.Pool() as pool:
-        partial_map = partial(determine_timestamps, digits=digits, error_folder=error_folder)
+    with multiprocessing.Pool(processes=3) as pool:
+        partial_map = partial(determine_timestamps, digits=digits)
         timestamps = pool.map(partial_map, raw_material)
 
     # Calculate amount of frames available
@@ -410,8 +412,8 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
     logger.info("Amount of frames available: {}".format(amount_of_frames_available))
 
     # Reduce the amount of frames if needed
-    start_time = False
-    stop_time = False
+    # start_time = False
+    # stop_time = False
     if amount_of_frames_available > amount_of_frames_needed:
         # There are more frames than needed, reduce the amount of frames
         timestamps, start_time, stop_time = select_timestamps(amount_of_frames_needed, timestamps)
@@ -428,12 +430,12 @@ def main(folder_name, destiny_file, music_file, frame_folder, target_fps):
         os.makedirs(frame_folder)
 
     # Clean up the image folder, remove unneeded files...
-    logger.info("Cleaning up frame folder...")
-    cleanup_image_folder(frame_folder, start_time, stop_time)
+    # logger.info("Cleaning up frame folder...")
+    # cleanup_image_folder(frame_folder, start_time, stop_time)
 
     # Process the selected frames
     logger.info("Processing selected frames...")
-    with multiprocessing.Pool() as pool:
+    with multiprocessing.Pool(processes=2) as pool:
         partial_map = partial(process_frames, destination_folder=frame_folder)
         result = pool.map(partial_map, timestamps)
 
@@ -471,4 +473,4 @@ if __name__ == "__main__":
         args.image_folder,
         args.frame_rate))
 
-    logger.info("Time needed to process: {:0.1f} sec".format(t.timeit(number=1)))
+    logger.info('Time needed to process: {:0.1f} sec'.format(t.timeit(number=1)))
